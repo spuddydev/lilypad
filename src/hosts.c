@@ -187,7 +187,7 @@ int probe_host(const char *host, const char *jump, char *out, size_t outsize) {
         args[a++] = "-o"; args[a++] = "StrictHostKeyChecking=accept-new";
         if (jump && *jump) { args[a++] = "-J"; args[a++] = jump; }
         args[a++] = host;
-        args[a++] = "command -v tmux >/dev/null && echo T; command -v tmuxp >/dev/null && echo P";
+        args[a++] = "command -v tmux >/dev/null && echo T; command -v tmuxp >/dev/null && echo P; true";
         args[a++] = NULL;
         execvp("ssh", (char *const *)args);
         _exit(127);
