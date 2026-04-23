@@ -119,8 +119,8 @@ static void draw_menu(const Host *hosts, const int *filtered, int fcount,
     }
 
     const char *hint = in_search
-        ? "type to filter  ↑↓ navigate  Enter select  Esc cancel"
-        : "↑↓/jk  Enter open  s ssh  t tmux  / search  r refresh  q quit";
+        ? "type to filter  [enter] select  [esc] cancel"
+        : "[j/k] move  [enter] open  [s] ssh  [t] tmux  [/] search  [r] refresh  [q] quit";
     attron(A_DIM);
     mvaddstr(h - 2, (w - display_width(hint)) / 2, hint);
     attroff(A_DIM);
@@ -283,7 +283,7 @@ static void draw_submenu(const char *title, const char * const *items, int n,
         attroff(COLOR_PAIR(2));
     }
 
-    const char *hint = "↑↓/jk  Enter select  q back";
+    const char *hint = "[j/k] move  [enter] select  [q] back";
     attron(A_DIM);
     mvaddstr(h - 2, (w - display_width(hint)) / 2, hint);
     attroff(A_DIM);

@@ -171,35 +171,45 @@ static int cmd_menu(void) {
     int count = load_hosts(hosts_path, hosts, MAX_HOSTS);
 
     ui_begin();
-    HostPick hp = run_host_menu(hosts, count, hosts_path);
-    if (hp.host_index < 0) { ui_end(); return 0; }
 
-    const Host *h = &hosts[hp.host_index];
-    Intent intent = hp.intent;
-    if ((intent == INTENT_TMUX_CHOOSE || intent == INTENT_TMUX_DEFAULT) &&
-        !host_has_tmux(h))
-        intent = INTENT_SSH;
-
+    const Host *h = NULL;
+    Intent intent = INTENT_CANCEL;
     SubChoice sc = {SUB_CANCEL, ""};
     TemplatePick tp = {TPL_CANCEL, ""};
-    if (intent == INTENT_TMUX_CHOOSE) {
+
+    while (1) {
+        HostPick hp = run_host_menu(hosts, count, hosts_path);
+        if (hp.host_index < 0) { ui_end(); return 0; }
+
+        h = &hosts[hp.host_index];
+        intent = hp.intent;
+        if ((intent == INTENT_TMUX_CHOOSE || intent == INTENT_TMUX_DEFAULT) &&
+            !host_has_tmux(h))
+            intent = INTENT_SSH;
+
+        if (intent != INTENT_TMUX_CHOOSE) break;
+
         ui_status("Loading sessions...");
         char sessions[16][128];
         int ns = fetch_sessions(h->host, h->jump, sessions, 16);
         if (ns < 0) ns = 0;
-        sc = run_tmux_menu(h->nick, sessions, ns, host_has_tmuxp(h));
-        if (sc.kind == SUB_CANCEL) { ui_end(); return 0; }
 
-        if (sc.kind == SUB_NEW) {
+        int back_to_main = 0;
+        while (1) {
+            sc = run_tmux_menu(h->nick, sessions, ns, host_has_tmuxp(h));
+            if (sc.kind == SUB_CANCEL) { back_to_main = 1; break; }
+
+            if (sc.kind != SUB_NEW) break;
+
             char templates[32][128];
             int nt = list_templates(templates, 32);
-            if (nt > 0) {
-                tp = run_template_menu(h->nick, templates, nt);
-                if (tp.kind == TPL_CANCEL) { ui_end(); return 0; }
-            } else {
-                tp.kind = TPL_DEFAULT;
-            }
+            if (nt == 0) { tp.kind = TPL_DEFAULT; break; }
+
+            tp = run_template_menu(h->nick, templates, nt);
+            if (tp.kind != TPL_CANCEL) break;
+            /* TPL_CANCEL falls through — re-show the tmux submenu */
         }
+        if (!back_to_main) break;
     }
 
     ui_end();
