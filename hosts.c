@@ -1,8 +1,10 @@
 #include "hosts.h"
 
+#include <fcntl.h>
 #include <libgen.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 #ifdef __APPLE__
@@ -155,5 +157,59 @@ int update_markers(const char *path, const char *nick, const char *markers) {
 
     if (!found) { unlink(tmp_path); return -1; }
     if (rename(tmp_path, path) != 0) { unlink(tmp_path); return -1; }
+    return 0;
+}
+
+int probe_host(const char *host, const char *jump, char *out, size_t outsize) {
+    if (outsize == 0) return -1;
+    out[0] = '\0';
+
+    int pipefd[2];
+    if (pipe(pipefd) != 0) return -1;
+
+    pid_t pid = fork();
+    if (pid < 0) { close(pipefd[0]); close(pipefd[1]); return -1; }
+    if (pid == 0) {
+        dup2(pipefd[1], STDOUT_FILENO);
+        close(pipefd[0]);
+        close(pipefd[1]);
+        int devnull = open("/dev/null", O_WRONLY);
+        if (devnull >= 0) { dup2(devnull, STDERR_FILENO); close(devnull); }
+        const char *args[16];
+        int a = 0;
+        args[a++] = "ssh";
+        args[a++] = "-o"; args[a++] = "BatchMode=yes";
+        args[a++] = "-o"; args[a++] = "ConnectTimeout=5";
+        args[a++] = "-o"; args[a++] = "StrictHostKeyChecking=accept-new";
+        if (jump && *jump) { args[a++] = "-J"; args[a++] = jump; }
+        args[a++] = host;
+        args[a++] = "command -v tmux >/dev/null && echo T; command -v tmuxp >/dev/null && echo P";
+        args[a++] = NULL;
+        execvp("ssh", (char *const *)args);
+        _exit(127);
+    }
+
+    close(pipefd[1]);
+    char buf[256];
+    ssize_t total = 0, n;
+    while (total < (ssize_t)sizeof(buf) - 1 &&
+           (n = read(pipefd[0], buf + total, sizeof(buf) - 1 - total)) > 0)
+        total += n;
+    buf[total > 0 ? total : 0] = '\0';
+    close(pipefd[0]);
+
+    int status;
+    waitpid(pid, &status, 0);
+    int ok = WIFEXITED(status) && WEXITSTATUS(status) == 0;
+
+    if (!ok) {
+        if (outsize >= 2) { out[0] = '?'; out[1] = '\0'; }
+        return 0;
+    }
+
+    size_t pos = 0;
+    if (!strchr(buf, 'T') && pos + 1 < outsize) out[pos++] = 't';
+    if (!strchr(buf, 'P') && pos + 1 < outsize) out[pos++] = 'p';
+    out[pos] = '\0';
     return 0;
 }

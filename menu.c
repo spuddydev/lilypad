@@ -3,7 +3,42 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <sys/wait.h>
 #include <unistd.h>
+
+static int prompt_yn(const char *msg) {
+    printf("%s [y/N] ", msg);
+    fflush(stdout);
+    int c = getchar();
+    int yes = (c == 'y' || c == 'Y');
+    while (c != '\n' && c != EOF) c = getchar();
+    return yes;
+}
+
+static int do_copy_id(const char *host, const char *jump) {
+    fflush(stdout);
+    pid_t pid = fork();
+    if (pid < 0) return -1;
+    if (pid == 0) {
+        char proxy_opt[MAX_LINE + 16];
+        const char *args[8];
+        int a = 0;
+        args[a++] = "ssh-copy-id";
+        if (jump && *jump) {
+            snprintf(proxy_opt, sizeof(proxy_opt), "ProxyJump=%s", jump);
+            args[a++] = "-o";
+            args[a++] = proxy_opt;
+        }
+        args[a++] = host;
+        args[a++] = NULL;
+        execvp("ssh-copy-id", (char *const *)args);
+        perror("ssh-copy-id");
+        _exit(127);
+    }
+    int status;
+    waitpid(pid, &status, 0);
+    return (WIFEXITED(status) && WEXITSTATUS(status) == 0) ? 0 : -1;
+}
 
 static int cmd_add(int argc, char *argv[]) {
     if (argc < 4 || argc > 5) {
@@ -24,6 +59,29 @@ static int cmd_add(int argc, char *argv[]) {
         printf("Added: %s -> %s (via %s)\n", nick, host, jump);
     else
         printf("Added: %s -> %s\n", nick, host);
+
+    printf("Probing %s... ", host);
+    fflush(stdout);
+    char markers[8] = "";
+    probe_host(host, jump, markers, sizeof(markers));
+
+    if (markers[0] == '?') {
+        printf("unreachable or key not installed.\n");
+        if (prompt_yn("Install ssh key now?")) {
+            if (do_copy_id(host, jump) == 0) {
+                printf("Re-probing... ");
+                fflush(stdout);
+                probe_host(host, jump, markers, sizeof(markers));
+                printf("%s\n", markers[0] ? markers : "ok");
+            }
+        }
+    } else if (markers[0]) {
+        printf("reachable, missing: %s\n", markers);
+    } else {
+        printf("ok (tmux and tmuxp present)\n");
+    }
+
+    update_markers(hosts_path, nick, markers);
     return 0;
 }
 
