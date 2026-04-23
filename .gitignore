@@ -1,4 +1,4 @@
-*.o
+/build/
 /menu
 /hosts
 .DS_Store

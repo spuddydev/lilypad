@@ -1,5 +1,5 @@
 CC      = cc
-CFLAGS  = -Wall -Wextra -O2
+CFLAGS  = -Wall -Wextra -O2 -Iinclude -MMD -MP
 
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Linux)
@@ -8,16 +8,23 @@ else
   LDLIBS = -lcurses
 endif
 
-OBJS = menu.o hosts.o ui.o
+SRCS = $(wildcard src/*.c)
+OBJS = $(SRCS:src/%.c=build/%.o)
+DEPS = $(OBJS:.o=.d)
+BIN  = menu
 
-menu: $(OBJS)
+$(BIN): $(OBJS)
 	$(CC) $(OBJS) -o $@ $(LDLIBS)
 
-menu.o:  menu.c  hosts.h ui.h common.h
-hosts.o: hosts.c hosts.h common.h
-ui.o:    ui.c    ui.h    hosts.h common.h
+build/%.o: src/%.c | build
+	$(CC) $(CFLAGS) -c $< -o $@
+
+build:
+	mkdir -p build
 
 clean:
-	rm -f menu $(OBJS)
+	rm -rf build $(BIN)
+
+-include $(DEPS)
 
 .PHONY: clean

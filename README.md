@@ -49,7 +49,6 @@ Whitespace-delimited. Lines with fewer than two fields are skipped.
 
 ## Layout
 
-- `menu.c` — entry point and command dispatch
-- `hosts.c` / `hosts.h` — host-file storage (load, add, path resolution)
-- `ui.c` / `ui.h` — ncurses menu
-- `common.h` — shared types and limits
+- `src/` — `menu.c` (entry + dispatch), `hosts.c` (storage + remote probe), `ui.c` (ncurses menu)
+- `include/` — `common.h` (types + limits), `hosts.h`, `ui.h`
+- `build/` — objects and auto-generated deps (gitignored)
