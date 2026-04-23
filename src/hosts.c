@@ -319,6 +319,17 @@ static int has_yaml_ext(const char *name) {
     return 0;
 }
 
+static int is_safe_basename(const char *s, size_t len) {
+    if (len == 0) return 0;
+    for (size_t i = 0; i < len; i++) {
+        char c = s[i];
+        if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+              (c >= '0' && c <= '9') || c == '-' || c == '_' || c == '.'))
+            return 0;
+    }
+    return 1;
+}
+
 int list_templates(char names[][128], int max) {
     char dir[MAX_PATH];
     get_templates_dir(dir, sizeof(dir));
@@ -332,6 +343,7 @@ int list_templates(char names[][128], int max) {
         if (!ext) continue;
         size_t base_len = strlen(e->d_name) - ext;
         if (base_len >= 128) base_len = 127;
+        if (!is_safe_basename(e->d_name, base_len)) continue;
         memcpy(names[count], e->d_name, base_len);
         names[count][base_len] = '\0';
         count++;

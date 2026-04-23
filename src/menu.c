@@ -133,6 +133,25 @@ static int scp_template(const Host *h, const char *src, const char *remote_path)
     return (WIFEXITED(status) && WEXITSTATUS(status) == 0) ? 0 : -1;
 }
 
+/* Escape single quotes for safe embedding inside a single-quoted shell
+ * string: ' becomes '\''. Truncates safely if dst is too small. */
+static void shell_sq_escape(char *dst, size_t dstsz, const char *src) {
+    size_t i = 0;
+    for (const char *p = src; *p; p++) {
+        if (*p == '\'') {
+            if (i + 4 >= dstsz) break;
+            dst[i++] = '\'';
+            dst[i++] = '\\';
+            dst[i++] = '\'';
+            dst[i++] = '\'';
+        } else {
+            if (i + 1 >= dstsz) break;
+            dst[i++] = *p;
+        }
+    }
+    dst[i < dstsz ? i : dstsz - 1] = '\0';
+}
+
 static int parse_session_name(const char *yaml_path, char *out, size_t size) {
     FILE *f = fopen(yaml_path, "r");
     if (!f) return -1;
@@ -185,13 +204,17 @@ static int exec_template(const Host *h, const char *template_name, int force_pla
 
     const char *tmux_prefix = (is_iterm() && !force_plain) ? "tmux -CC" : "tmux";
     char remote_cmd[1024];
+    char esc_path[MAX_PATH + 16];
+    shell_sq_escape(esc_path, sizeof(esc_path), remote_path);
     if (have_session) {
+        char esc_session[256];
+        shell_sq_escape(esc_session, sizeof(esc_session), session);
         snprintf(remote_cmd, sizeof(remote_cmd),
-                 "tmuxp load -d -y %s; rm -f %s; %s attach -t '%s'",
-                 remote_path, remote_path, tmux_prefix, session);
+                 "tmuxp load -d -y '%s'; rm -f '%s'; %s attach -t '%s'",
+                 esc_path, esc_path, tmux_prefix, esc_session);
     } else {
         snprintf(remote_cmd, sizeof(remote_cmd),
-                 "tmuxp load -y %s; rm -f %s", remote_path, remote_path);
+                 "tmuxp load -y '%s'; rm -f '%s'", esc_path, esc_path);
     }
     return exec_ssh_tmux(h, remote_cmd);
 }
@@ -275,18 +298,23 @@ static int cmd_menu(void) {
     if (sc.kind == SUB_NEW && tp.kind == TPL_NAMED)
         return exec_template(h, tp.name, sc.force_plain);
 
+    char esc[256];
+
     if (intent == INTENT_TMUX_DEFAULT) {
-        snprintf(remote_cmd, sizeof(remote_cmd), "tmux new -A -s '%s'", new_session);
+        shell_sq_escape(esc, sizeof(esc), new_session);
+        snprintf(remote_cmd, sizeof(remote_cmd), "tmux new -A -s '%s'", esc);
         return exec_ssh_tmux(h, remote_cmd);
     }
 
     if (sc.kind == SUB_NEW) {
-        snprintf(remote_cmd, sizeof(remote_cmd), "%s new -A -s '%s'", prefix, new_session);
+        shell_sq_escape(esc, sizeof(esc), new_session);
+        snprintf(remote_cmd, sizeof(remote_cmd), "%s new -A -s '%s'", prefix, esc);
         return exec_ssh_tmux(h, remote_cmd);
     }
 
     if (sc.kind == SUB_ATTACH) {
-        snprintf(remote_cmd, sizeof(remote_cmd), "%s attach -t '%s'", prefix, sc.session);
+        shell_sq_escape(esc, sizeof(esc), sc.session);
+        snprintf(remote_cmd, sizeof(remote_cmd), "%s attach -t '%s'", prefix, esc);
         return exec_ssh_tmux(h, remote_cmd);
     }
 
