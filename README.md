@@ -1,6 +1,6 @@
 # ssh-menu
 
-Tiny ncurses menu for quickly SSH-ing into saved hosts. Runs on macOS and Linux — the `hosts` file is resolved next to the binary.
+Tiny ncurses menu for quickly SSH-ing into saved hosts. Runs on macOS and Linux — state lives in `~/.config/ssh-menu/` (or `$XDG_CONFIG_HOME/ssh-menu/`).
 
 ## Build
 
@@ -39,13 +39,13 @@ The selected host is connected via `ssh`, with `ssh -J <jump_hosts>` when one is
 
 ## Hosts file
 
-Stored as `hosts` next to the binary, one record per line:
+Stored at `~/.config/ssh-menu/hosts` (or `$XDG_CONFIG_HOME/ssh-menu/hosts`). One record per line:
 
 ```
-nickname user@address [jump_hosts]
+nickname user@address [jump_hosts] [#markers]
 ```
 
-Whitespace-delimited. Lines with fewer than two fields are skipped.
+Whitespace-delimited. Lines with fewer than two fields are skipped. The `#markers` column is written by the probe and shouldn't usually be hand-edited.
 
 ## Layout
 

@@ -1,36 +1,48 @@
 #include "hosts.h"
 
 #include <fcntl.h>
-#include <libgen.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
-#ifdef __APPLE__
-#include <mach-o/dyld.h>
-#include <stdint.h>
-#endif
-
-static int get_exe_path(char *out, size_t size) {
-#ifdef __APPLE__
-    uint32_t len = (uint32_t)size;
-    return _NSGetExecutablePath(out, &len) == 0 ? 0 : -1;
-#else
-    ssize_t n = readlink("/proc/self/exe", out, size - 1);
-    if (n < 0) return -1;
-    out[n] = '\0';
-    return 0;
-#endif
+void get_hosts_path(char *out, size_t size) {
+    const char *xdg = getenv("XDG_CONFIG_HOME");
+    const char *home = getenv("HOME");
+    if (xdg && *xdg)
+        snprintf(out, size, "%s/ssh-menu/hosts", xdg);
+    else if (home && *home)
+        snprintf(out, size, "%s/.config/ssh-menu/hosts", home);
+    else
+        snprintf(out, size, "hosts");
 }
 
-void get_hosts_path(char *out, size_t size) {
-    char exe[MAX_PATH];
-    if (get_exe_path(exe, sizeof(exe)) != 0) {
-        snprintf(out, size, "hosts");
-        return;
+static void mkdir_p(const char *path) {
+    char tmp[MAX_PATH];
+    size_t n = strlen(path);
+    if (n >= sizeof(tmp)) return;
+    memcpy(tmp, path, n + 1);
+    for (char *p = tmp + 1; *p; p++) {
+        if (*p == '/') {
+            *p = '\0';
+            mkdir(tmp, 0700);
+            *p = '/';
+        }
     }
-    snprintf(out, size, "%s/hosts", dirname(exe));
+    mkdir(tmp, 0700);
+}
+
+static void ensure_parent(const char *path) {
+    char tmp[MAX_PATH];
+    size_t n = strlen(path);
+    if (n >= sizeof(tmp)) return;
+    memcpy(tmp, path, n + 1);
+    char *slash = strrchr(tmp, '/');
+    if (!slash || slash == tmp) return;
+    *slash = '\0';
+    mkdir_p(tmp);
 }
 
 /* Parse an in-place, whitespace-delimited hosts line.
@@ -113,6 +125,7 @@ int add_host(const char *path, const char *nick, const char *host, const char *j
         fclose(f);
     }
 
+    ensure_parent(path);
     f = fopen(path, "a");
     if (!f) { perror("Error opening hosts file"); return 1; }
     if (jump)
