@@ -133,6 +133,36 @@ static int scp_template(const Host *h, const char *src, const char *remote_path)
     return (WIFEXITED(status) && WEXITSTATUS(status) == 0) ? 0 : -1;
 }
 
+static int parse_session_name(const char *yaml_path, char *out, size_t size) {
+    FILE *f = fopen(yaml_path, "r");
+    if (!f) return -1;
+    char line[512];
+    int found = -1;
+    while (fgets(line, sizeof(line), f)) {
+        char *p = line;
+        while (*p == ' ' || *p == '\t') p++;
+        if (strncmp(p, "session_name:", 13) != 0) continue;
+        p += 13;
+        while (*p == ' ' || *p == '\t') p++;
+        char *e = p + strlen(p);
+        while (e > p && (e[-1] == '\n' || e[-1] == '\r' ||
+                         e[-1] == ' ' || e[-1] == '\t'))
+            e--;
+        *e = '\0';
+        if ((*p == '"' || *p == '\'') && e > p + 1 && e[-1] == *p) {
+            p++; *(e - 1) = '\0';
+        }
+        size_t n = strlen(p);
+        if (n == 0 || n >= size) break;
+        memcpy(out, p, n);
+        out[n] = '\0';
+        found = 0;
+        break;
+    }
+    fclose(f);
+    return found;
+}
+
 static int exec_template(const Host *h, const char *template_name) {
     char dir[MAX_PATH], src[MAX_PATH];
     get_templates_dir(dir, sizeof(dir));
@@ -143,15 +173,26 @@ static int exec_template(const Host *h, const char *template_name) {
         fprintf(stderr, "Template not found: %s\n", template_name);
         return 1;
     }
+    char session[128] = "";
+    int have_session = parse_session_name(src, session, sizeof(session)) == 0;
+
     char remote_path[MAX_PATH];
     snprintf(remote_path, sizeof(remote_path), "/tmp/ssh-menu-%s.yaml", template_name);
     if (scp_template(h, src, remote_path) != 0) {
         fprintf(stderr, "scp failed\n");
         return 1;
     }
-    char remote_cmd[512];
-    snprintf(remote_cmd, sizeof(remote_cmd),
-             "tmuxp load -y %s; rm -f %s", remote_path, remote_path);
+
+    const char *tmux_prefix = is_iterm() ? "tmux -CC" : "tmux";
+    char remote_cmd[1024];
+    if (have_session) {
+        snprintf(remote_cmd, sizeof(remote_cmd),
+                 "tmuxp load -d -y %s; rm -f %s; %s attach -t '%s'",
+                 remote_path, remote_path, tmux_prefix, session);
+    } else {
+        snprintf(remote_cmd, sizeof(remote_cmd),
+                 "tmuxp load -y %s; rm -f %s", remote_path, remote_path);
+    }
     return exec_ssh_tmux(h, remote_cmd);
 }
 
