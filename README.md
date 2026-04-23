@@ -29,6 +29,7 @@ Requires a C compiler and `curses`, both of which ship with macOS.
 
 - `↑`/`↓` or `j`/`k` to move
 - `Enter`, or digits `1`–`9`, to pick
+- `s` (or `/`) to filter by nickname/address — Esc clears, Enter picks
 - `q` to quit
 
 The selected host is connected via `ssh`, with `ssh -J <jump_hosts>` when one is set.
