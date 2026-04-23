@@ -36,6 +36,31 @@ static int apply_filter(const Host *hosts, int count, const char *q, int *out) {
     return n;
 }
 
+void ui_begin(void) {
+    initscr();
+    noecho();
+    cbreak();
+    curs_set(0);
+    keypad(stdscr, TRUE);
+    start_color();
+    init_pair(1, COLOR_BLACK, COLOR_CYAN);
+    init_pair(2, COLOR_RED, COLOR_BLACK);
+}
+
+void ui_end(void) {
+    endwin();
+}
+
+void ui_status(const char *msg) {
+    erase();
+    int h, w;
+    getmaxyx(stdscr, h, w);
+    attron(A_DIM);
+    mvaddstr(h / 2, (w - display_width(msg)) / 2, msg);
+    attroff(A_DIM);
+    refresh();
+}
+
 static void draw_menu(const Host *hosts, const int *filtered, int fcount,
                       int selected, int top, int visible,
                       const char *query, int in_search) {
@@ -93,7 +118,7 @@ static void draw_menu(const Host *hosts, const int *filtered, int fcount,
 
     const char *hint = in_search
         ? "type to filter  ↑↓ navigate  Enter select  Esc cancel"
-        : "↑↓/jk navigate  Enter select  s search  r refresh  q quit";
+        : "↑↓/jk  Enter open  s ssh  t tmux  / search  r refresh  q quit";
     attron(A_DIM);
     mvaddstr(h - 2, (w - display_width(hint)) / 2, hint);
     attroff(A_DIM);
@@ -122,21 +147,13 @@ static void refresh_host(Host *h, const char *hosts_path) {
     h->markers[n] = '\0';
 }
 
-int run_menu(Host *hosts, int count, const char *hosts_path) {
-    initscr();
-    noecho();
-    cbreak();
-    curs_set(0);
-    keypad(stdscr, TRUE);
-    start_color();
-    init_pair(1, COLOR_BLACK, COLOR_CYAN);
-    init_pair(2, COLOR_RED, COLOR_BLACK);
+HostPick run_host_menu(Host *hosts, int count, const char *hosts_path) {
+    HostPick result = {-1, INTENT_CANCEL};
 
     if (count == 0) {
         mvaddstr(0, 0, "No hosts found. Use: menu --add name@address nickname");
         getch();
-        endwin();
-        return -1;
+        return result;
     }
 
     int filtered[MAX_HOSTS];
@@ -145,7 +162,6 @@ int run_menu(Host *hosts, int count, const char *hosts_path) {
     int in_search = 0;
     int selected = 0;
     int top = 0;
-    int chosen = -1;
 
     while (1) {
         int h, w;
@@ -168,8 +184,9 @@ int run_menu(Host *hosts, int count, const char *hosts_path) {
                 top = 0;
             } else if (key == '\n' || key == KEY_ENTER) {
                 if (fcount > 0) {
-                    chosen = filtered[selected];
-                    break;
+                    result.host_index = filtered[selected];
+                    result.intent = INTENT_TMUX_CHOOSE;
+                    return result;
                 }
             } else if (key == KEY_UP && selected > 0) {
                 selected--;
@@ -194,32 +211,129 @@ int run_menu(Host *hosts, int count, const char *hosts_path) {
                 }
             }
         } else {
-            if ((key == KEY_UP || key == 'k') && selected > 0)
+            if ((key == KEY_UP || key == 'k') && selected > 0) {
                 selected--;
-            else if ((key == KEY_DOWN || key == 'j') && selected < fcount - 1)
+            } else if ((key == KEY_DOWN || key == 'j') && selected < fcount - 1) {
                 selected++;
-            else if (key == '\n' || key == KEY_ENTER) {
+            } else if (key == '\n' || key == KEY_ENTER) {
                 if (fcount > 0) {
-                    chosen = filtered[selected];
-                    break;
+                    result.host_index = filtered[selected];
+                    result.intent = INTENT_TMUX_CHOOSE;
+                    return result;
                 }
-            } else if (key == 'q') {
-                break;
-            } else if (key == 's' || key == '/') {
+            } else if (key == 's') {
+                if (fcount > 0) {
+                    result.host_index = filtered[selected];
+                    result.intent = INTENT_SSH;
+                    return result;
+                }
+            } else if (key == 't') {
+                if (fcount > 0) {
+                    result.host_index = filtered[selected];
+                    result.intent = INTENT_TMUX_DEFAULT;
+                    return result;
+                }
+            } else if (key == '/') {
                 in_search = 1;
             } else if (key == 'r') {
                 if (fcount > 0)
                     refresh_host(&hosts[filtered[selected]], hosts_path);
+            } else if (key == 'q') {
+                return result;
             } else if (key >= '1' && key <= '9') {
                 int idx = key - '1';
-                if (idx < fcount) {
-                    chosen = filtered[idx];
-                    break;
-                }
+                if (idx < fcount) selected = idx;
             }
         }
     }
+}
 
-    endwin();
-    return chosen;
+static void draw_submenu(const char *title, const char * const *items, int n,
+                         int selected, int top, int visible) {
+    int h, w;
+    getmaxyx(stdscr, h, w);
+    erase();
+
+    int tw = display_width(title);
+    mvaddstr(1, (w - tw) / 2, title);
+    mvchgat(1, (w - tw) / 2, tw, A_BOLD | A_UNDERLINE, 0, NULL);
+
+    int end = top + visible;
+    if (end > n) end = n;
+    for (int i = top; i < end; i++) {
+        char label[256];
+        snprintf(label, sizeof(label), "  %s  ", items[i]);
+        int lw = display_width(label);
+        int x = (w - lw) / 2;
+        int row = 4 + (i - top);
+        if (i == selected) {
+            attron(COLOR_PAIR(1));
+            mvaddstr(row, x, label);
+            attroff(COLOR_PAIR(1));
+        } else {
+            mvaddstr(row, x, label);
+        }
+    }
+
+    const char *hint = "↑↓/jk  Enter select  q back";
+    attron(A_DIM);
+    mvaddstr(h - 2, (w - display_width(hint)) / 2, hint);
+    attroff(A_DIM);
+
+    refresh();
+}
+
+SubChoice run_tmux_menu(const char *host_label, char sessions[][128], int n) {
+    SubChoice result = {SUB_CANCEL, ""};
+
+    int item_count = 2 + n;
+    const char *items[2 + 16];
+    char session_labels[16][160];
+    items[0] = "Plain shell";
+    items[1] = "New tmux session";
+    if (n > 16) n = 16;
+    for (int i = 0; i < n; i++) {
+        snprintf(session_labels[i], sizeof(session_labels[i]), "Attach: %s", sessions[i]);
+        items[2 + i] = session_labels[i];
+    }
+
+    char title[256];
+    snprintf(title, sizeof(title), "%s — pick session", host_label);
+
+    int selected = 0, top = 0;
+    while (1) {
+        int h, w;
+        getmaxyx(stdscr, h, w);
+        (void)w;
+        int visible = h - 6;
+        if (visible < 1) visible = 1;
+        if (selected < 0) selected = 0;
+        if (selected >= item_count) selected = item_count - 1;
+        top = clamp_top(top, selected, visible);
+
+        draw_submenu(title, items, item_count, selected, top, visible);
+        int key = getch();
+
+        if ((key == KEY_UP || key == 'k') && selected > 0) {
+            selected--;
+        } else if ((key == KEY_DOWN || key == 'j') && selected < item_count - 1) {
+            selected++;
+        } else if (key == '\n' || key == KEY_ENTER) {
+            if (selected == 0) {
+                result.kind = SUB_PLAIN;
+            } else if (selected == 1) {
+                result.kind = SUB_NEW;
+            } else {
+                result.kind = SUB_ATTACH;
+                int sidx = selected - 2;
+                size_t len = strlen(sessions[sidx]);
+                if (len >= sizeof(result.session)) len = sizeof(result.session) - 1;
+                memcpy(result.session, sessions[sidx], len);
+                result.session[len] = '\0';
+            }
+            return result;
+        } else if (key == 'q' || key == 27) {
+            return result;
+        }
+    }
 }

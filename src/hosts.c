@@ -230,3 +230,60 @@ int probe_host(const char *host, const char *jump, char *out, size_t outsize) {
     out[pos] = '\0';
     return 0;
 }
+
+int fetch_sessions(const char *host, const char *jump, char sessions[][128], int max) {
+    int pipefd[2];
+    if (pipe(pipefd) != 0) return -1;
+
+    pid_t pid = fork();
+    if (pid < 0) { close(pipefd[0]); close(pipefd[1]); return -1; }
+    if (pid == 0) {
+        dup2(pipefd[1], STDOUT_FILENO);
+        close(pipefd[0]);
+        close(pipefd[1]);
+        int devnull = open("/dev/null", O_RDWR);
+        if (devnull >= 0) {
+            dup2(devnull, STDIN_FILENO);
+            dup2(devnull, STDERR_FILENO);
+            close(devnull);
+        }
+        const char *args[16];
+        int a = 0;
+        args[a++] = "ssh";
+        args[a++] = "-o"; args[a++] = "BatchMode=yes";
+        args[a++] = "-o"; args[a++] = "ConnectTimeout=5";
+        if (jump && *jump) { args[a++] = "-J"; args[a++] = jump; }
+        args[a++] = host;
+        args[a++] = "tmux ls 2>/dev/null; true";
+        args[a++] = NULL;
+        execvp("ssh", (char *const *)args);
+        _exit(127);
+    }
+
+    close(pipefd[1]);
+    char buf[4096];
+    ssize_t total = 0, n;
+    while (total < (ssize_t)sizeof(buf) - 1 &&
+           (n = read(pipefd[0], buf + total, sizeof(buf) - 1 - total)) > 0)
+        total += n;
+    buf[total > 0 ? total : 0] = '\0';
+    close(pipefd[0]);
+
+    int status;
+    waitpid(pid, &status, 0);
+    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) return -1;
+
+    int count = 0;
+    char *save = NULL;
+    for (char *line = strtok_r(buf, "\n", &save);
+         line && count < max;
+         line = strtok_r(NULL, "\n", &save)) {
+        char *colon = strchr(line, ':');
+        size_t len = colon ? (size_t)(colon - line) : strlen(line);
+        if (len == 0 || len >= 128) continue;
+        memcpy(sessions[count], line, len);
+        sessions[count][len] = '\0';
+        count++;
+    }
+    return count;
+}

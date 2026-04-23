@@ -15,4 +15,9 @@ int update_markers(const char *path, const char *nick, const char *markers);
  * Returns 0 if the probe ran (success or "?"), -1 on internal error. */
 int probe_host(const char *host, const char *jump, char *out, size_t outsize);
 
+/* Fetch tmux session names from the remote via `tmux ls`. Each entry is
+ * the bare session name (text before the colon). Returns the count, 0 if
+ * none, or -1 on ssh error. */
+int fetch_sessions(const char *host, const char *jump, char sessions[][128], int max);
+
 #endif

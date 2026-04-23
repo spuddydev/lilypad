@@ -27,15 +27,17 @@ Requires a C compiler and ncurses. macOS ships this out of the box; on Debian/Ub
 ./menu
 ```
 
-- `↑`/`↓` or `j`/`k` to move
-- `Enter`, or digits `1`–`9`, to pick
-- `s` (or `/`) to filter by nickname/address — Esc clears, Enter picks
+- `↑`/`↓` or `j`/`k` to move; digits `1`–`9` jump to that row
+- `Enter` opens (uses tmux submenu when the host has tmux)
+- `s` opens a plain ssh shell (skips submenu)
+- `t` opens a default tmux session named `main` (creates if missing)
+- `/` to filter by nickname/address — Esc clears, Enter picks
 - `r` to re-probe the highlighted host (refreshes markers)
 - `q` to quit
 
 Red markers next to a host flag what is **missing**: `t` = no tmux, `p` = no tmuxp, `?` = probe failed. No markers means the host is fully set up. Probing happens automatically on `--add` and on demand with `r`.
 
-The selected host is connected via `ssh`, with `ssh -J <jump_hosts>` when one is set.
+Hosts with tmux installed get a second screen on `Enter`: pick `Plain shell`, `New tmux session`, or attach to one of the existing `tmux ls` sessions. iTerm2 sessions use `tmux -CC` automatically; other terminals get plain tmux.
 
 ## Hosts file
 
