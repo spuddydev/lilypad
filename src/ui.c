@@ -299,7 +299,8 @@ HostPick run_host_menu(Host *hosts, int count, const char *hosts_path) {
 }
 
 static void draw_submenu(const char *title, const char * const *items, int n,
-                         int selected, int top, int visible, const char *warning) {
+                         int selected, int top, int visible,
+                         const char *warning, const char *hint) {
     int h, w;
     getmaxyx(stdscr, h, w);
     erase();
@@ -331,7 +332,6 @@ static void draw_submenu(const char *title, const char * const *items, int n,
         attroff(COLOR_PAIR(2));
     }
 
-    const char *hint = "[j/k] move  [enter] select  [q] back";
     attron(A_DIM);
     mvaddstr(h - 2, (w - display_width(hint)) / 2, hint);
     attroff(A_DIM);
@@ -342,6 +342,7 @@ static void draw_submenu(const char *title, const char * const *items, int n,
 static int submenu_loop(const char *title, const char * const *items, int n,
                         const char *warning) {
     int selected = 0, top = 0;
+    const char *hint = "[j/k] move  [enter] select  [q] back";
     while (1) {
         int h, w;
         getmaxyx(stdscr, h, w);
@@ -352,7 +353,7 @@ static int submenu_loop(const char *title, const char * const *items, int n,
         if (selected >= n) selected = n - 1;
         top = clamp_top(top, selected, visible);
 
-        draw_submenu(title, items, n, selected, top, visible, warning);
+        draw_submenu(title, items, n, selected, top, visible, warning, hint);
         int key = getch();
 
         if ((key == KEY_UP || key == 'k') && selected > 0)
@@ -368,7 +369,7 @@ static int submenu_loop(const char *title, const char * const *items, int n,
 
 SubChoice run_tmux_menu(const char *host_label, char sessions[][128], int n,
                         int has_tmuxp) {
-    SubChoice result = {SUB_CANCEL, ""};
+    SubChoice result = {SUB_CANCEL, "", 0};
 
     if (n > 16) n = 16;
     int item_count = 2 + n;
@@ -384,23 +385,48 @@ SubChoice run_tmux_menu(const char *host_label, char sessions[][128], int n,
     char title[256];
     snprintf(title, sizeof(title), "%s: pick session", host_label);
 
-    const char *warn = has_tmuxp ? NULL : "tmuxp not on host:templates won't load";
-    int picked = submenu_loop(title, items, item_count, warn);
-    if (picked < 0) return result;
+    const char *warn = has_tmuxp ? NULL : "tmuxp not on host: templates won't load";
+    const char *hint = "[j/k] move  [enter] select  [t] plain (no -CC)  [q] back";
 
-    if (picked == 0) {
-        result.kind = SUB_PLAIN;
-    } else if (picked == 1) {
-        result.kind = SUB_NEW;
-    } else {
-        result.kind = SUB_ATTACH;
-        int sidx = picked - 2;
-        size_t len = strlen(sessions[sidx]);
-        if (len >= sizeof(result.session)) len = sizeof(result.session) - 1;
-        memcpy(result.session, sessions[sidx], len);
-        result.session[len] = '\0';
+    int selected = 0, top = 0;
+    while (1) {
+        int h, w;
+        getmaxyx(stdscr, h, w);
+        (void)w;
+        int visible = h - 6 - (warn && warn[0] ? 1 : 0);
+        if (visible < 1) visible = 1;
+        if (selected < 0) selected = 0;
+        if (selected >= item_count) selected = item_count - 1;
+        top = clamp_top(top, selected, visible);
+
+        draw_submenu(title, items, item_count, selected, top, visible, warn, hint);
+        int key = getch();
+
+        if ((key == KEY_UP || key == 'k') && selected > 0) {
+            selected--;
+        } else if ((key == KEY_DOWN || key == 'j') && selected < item_count - 1) {
+            selected++;
+        } else if (key == '\n' || key == KEY_ENTER || key == 't') {
+            int force_plain = (key == 't');
+            if (selected == 0) {
+                result.kind = SUB_PLAIN;
+            } else if (selected == 1) {
+                result.kind = SUB_NEW;
+                result.force_plain = force_plain;
+            } else {
+                result.kind = SUB_ATTACH;
+                result.force_plain = force_plain;
+                int sidx = selected - 2;
+                size_t len = strlen(sessions[sidx]);
+                if (len >= sizeof(result.session)) len = sizeof(result.session) - 1;
+                memcpy(result.session, sessions[sidx], len);
+                result.session[len] = '\0';
+            }
+            return result;
+        } else if (key == 'q' || key == 27) {
+            return result;
+        }
     }
-    return result;
 }
 
 TemplatePick run_template_menu(const char *host_label, char templates[][128], int n) {

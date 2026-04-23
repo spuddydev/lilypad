@@ -26,6 +26,7 @@ typedef enum {
 typedef struct {
     SubChoiceKind kind;
     char session[128];
+    int force_plain;
 } SubChoice;
 
 typedef enum {

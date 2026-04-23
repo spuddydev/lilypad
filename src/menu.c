@@ -163,7 +163,7 @@ static int parse_session_name(const char *yaml_path, char *out, size_t size) {
     return found;
 }
 
-static int exec_template(const Host *h, const char *template_name) {
+static int exec_template(const Host *h, const char *template_name, int force_plain) {
     char dir[MAX_PATH], src[MAX_PATH];
     get_templates_dir(dir, sizeof(dir));
     snprintf(src, sizeof(src), "%s/%s.yaml", dir, template_name);
@@ -183,7 +183,7 @@ static int exec_template(const Host *h, const char *template_name) {
         return 1;
     }
 
-    const char *tmux_prefix = is_iterm() ? "tmux -CC" : "tmux";
+    const char *tmux_prefix = (is_iterm() && !force_plain) ? "tmux -CC" : "tmux";
     char remote_cmd[1024];
     if (have_session) {
         snprintf(remote_cmd, sizeof(remote_cmd),
@@ -266,14 +266,14 @@ static int cmd_menu(void) {
 
     ui_end();
 
-    const char *prefix = is_iterm() ? "tmux -CC" : "tmux";
+    const char *prefix = (is_iterm() && !sc.force_plain) ? "tmux -CC" : "tmux";
     char remote_cmd[256];
 
     if (intent == INTENT_SSH || (intent == INTENT_TMUX_CHOOSE && sc.kind == SUB_PLAIN))
         return exec_ssh_plain(h);
 
     if (sc.kind == SUB_NEW && tp.kind == TPL_NAMED)
-        return exec_template(h, tp.name);
+        return exec_template(h, tp.name, sc.force_plain);
 
     if (intent == INTENT_TMUX_DEFAULT) {
         snprintf(remote_cmd, sizeof(remote_cmd), "tmux new -A -s '%s'", new_session);
