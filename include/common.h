@@ -5,6 +5,9 @@
 #define MAX_LINE  512
 #define MAX_HOSTS 256
 
+#define REMOTE_PATH_PREFIX \
+    "PATH=$HOME/.local/bin:$HOME/bin:/opt/homebrew/bin:/usr/local/bin:$PATH; "
+
 typedef struct {
     char nick[MAX_LINE];
     char host[MAX_LINE];

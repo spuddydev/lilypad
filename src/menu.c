@@ -107,8 +107,10 @@ static int exec_ssh_plain(const Host *h) {
 }
 
 static int exec_ssh_tmux(const Host *h, const char *remote_cmd) {
-    if (h->jump[0]) execlp("ssh", "ssh", "-t", "-J", h->jump, h->host, remote_cmd, NULL);
-    else            execlp("ssh", "ssh", "-t", h->host, remote_cmd, NULL);
+    char wrapped[1024];
+    snprintf(wrapped, sizeof(wrapped), REMOTE_PATH_PREFIX "%s", remote_cmd);
+    if (h->jump[0]) execlp("ssh", "ssh", "-t", "-J", h->jump, h->host, wrapped, NULL);
+    else            execlp("ssh", "ssh", "-t", h->host, wrapped, NULL);
     perror("ssh");
     return 1;
 }

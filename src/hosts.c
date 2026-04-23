@@ -201,7 +201,10 @@ int probe_host(const char *host, const char *jump, char *out, size_t outsize) {
         args[a++] = "-o"; args[a++] = "StrictHostKeyChecking=accept-new";
         if (jump && *jump) { args[a++] = "-J"; args[a++] = jump; }
         args[a++] = host;
-        args[a++] = "command -v tmux >/dev/null && echo T; command -v tmuxp >/dev/null && echo P; true";
+        args[a++] =
+            REMOTE_PATH_PREFIX
+            "command -v tmux >/dev/null && echo T; "
+            "command -v tmuxp >/dev/null && echo P; true";
         args[a++] = NULL;
         execvp("ssh", (char *const *)args);
         _exit(127);
@@ -255,7 +258,7 @@ int fetch_sessions(const char *host, const char *jump, char sessions[][128], int
         args[a++] = "-o"; args[a++] = "ConnectTimeout=5";
         if (jump && *jump) { args[a++] = "-J"; args[a++] = jump; }
         args[a++] = host;
-        args[a++] = "tmux ls 2>/dev/null; true";
+        args[a++] = REMOTE_PATH_PREFIX "tmux ls 2>/dev/null; true";
         args[a++] = NULL;
         execvp("ssh", (char *const *)args);
         _exit(127);
