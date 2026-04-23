@@ -249,7 +249,7 @@ HostPick run_host_menu(Host *hosts, int count, const char *hosts_path) {
 }
 
 static void draw_submenu(const char *title, const char * const *items, int n,
-                         int selected, int top, int visible) {
+                         int selected, int top, int visible, const char *warning) {
     int h, w;
     getmaxyx(stdscr, h, w);
     erase();
@@ -275,6 +275,12 @@ static void draw_submenu(const char *title, const char * const *items, int n,
         }
     }
 
+    if (warning && warning[0]) {
+        attron(COLOR_PAIR(2));
+        mvaddstr(h - 3, (w - display_width(warning)) / 2, warning);
+        attroff(COLOR_PAIR(2));
+    }
+
     const char *hint = "↑↓/jk  Enter select  q back";
     attron(A_DIM);
     mvaddstr(h - 2, (w - display_width(hint)) / 2, hint);
@@ -283,15 +289,43 @@ static void draw_submenu(const char *title, const char * const *items, int n,
     refresh();
 }
 
-SubChoice run_tmux_menu(const char *host_label, char sessions[][128], int n) {
+static int submenu_loop(const char *title, const char * const *items, int n,
+                        const char *warning) {
+    int selected = 0, top = 0;
+    while (1) {
+        int h, w;
+        getmaxyx(stdscr, h, w);
+        (void)w;
+        int visible = h - 6 - (warning && warning[0] ? 1 : 0);
+        if (visible < 1) visible = 1;
+        if (selected < 0) selected = 0;
+        if (selected >= n) selected = n - 1;
+        top = clamp_top(top, selected, visible);
+
+        draw_submenu(title, items, n, selected, top, visible, warning);
+        int key = getch();
+
+        if ((key == KEY_UP || key == 'k') && selected > 0)
+            selected--;
+        else if ((key == KEY_DOWN || key == 'j') && selected < n - 1)
+            selected++;
+        else if (key == '\n' || key == KEY_ENTER)
+            return selected;
+        else if (key == 'q' || key == 27)
+            return -1;
+    }
+}
+
+SubChoice run_tmux_menu(const char *host_label, char sessions[][128], int n,
+                        int has_tmuxp) {
     SubChoice result = {SUB_CANCEL, ""};
 
+    if (n > 16) n = 16;
     int item_count = 2 + n;
     const char *items[2 + 16];
     char session_labels[16][160];
     items[0] = "Plain shell";
     items[1] = "New tmux session";
-    if (n > 16) n = 16;
     for (int i = 0; i < n; i++) {
         snprintf(session_labels[i], sizeof(session_labels[i]), "Attach: %s", sessions[i]);
         items[2 + i] = session_labels[i];
@@ -300,40 +334,49 @@ SubChoice run_tmux_menu(const char *host_label, char sessions[][128], int n) {
     char title[256];
     snprintf(title, sizeof(title), "%s — pick session", host_label);
 
-    int selected = 0, top = 0;
-    while (1) {
-        int h, w;
-        getmaxyx(stdscr, h, w);
-        (void)w;
-        int visible = h - 6;
-        if (visible < 1) visible = 1;
-        if (selected < 0) selected = 0;
-        if (selected >= item_count) selected = item_count - 1;
-        top = clamp_top(top, selected, visible);
+    const char *warn = has_tmuxp ? NULL : "tmuxp not on host — templates won't load";
+    int picked = submenu_loop(title, items, item_count, warn);
+    if (picked < 0) return result;
 
-        draw_submenu(title, items, item_count, selected, top, visible);
-        int key = getch();
-
-        if ((key == KEY_UP || key == 'k') && selected > 0) {
-            selected--;
-        } else if ((key == KEY_DOWN || key == 'j') && selected < item_count - 1) {
-            selected++;
-        } else if (key == '\n' || key == KEY_ENTER) {
-            if (selected == 0) {
-                result.kind = SUB_PLAIN;
-            } else if (selected == 1) {
-                result.kind = SUB_NEW;
-            } else {
-                result.kind = SUB_ATTACH;
-                int sidx = selected - 2;
-                size_t len = strlen(sessions[sidx]);
-                if (len >= sizeof(result.session)) len = sizeof(result.session) - 1;
-                memcpy(result.session, sessions[sidx], len);
-                result.session[len] = '\0';
-            }
-            return result;
-        } else if (key == 'q' || key == 27) {
-            return result;
-        }
+    if (picked == 0) {
+        result.kind = SUB_PLAIN;
+    } else if (picked == 1) {
+        result.kind = SUB_NEW;
+    } else {
+        result.kind = SUB_ATTACH;
+        int sidx = picked - 2;
+        size_t len = strlen(sessions[sidx]);
+        if (len >= sizeof(result.session)) len = sizeof(result.session) - 1;
+        memcpy(result.session, sessions[sidx], len);
+        result.session[len] = '\0';
     }
+    return result;
+}
+
+TemplatePick run_template_menu(const char *host_label, char templates[][128], int n) {
+    TemplatePick result = {TPL_CANCEL, ""};
+
+    if (n > 32) n = 32;
+    int item_count = 1 + n;
+    const char *items[1 + 32];
+    items[0] = "default (no template)";
+    for (int i = 0; i < n; i++)
+        items[1 + i] = templates[i];
+
+    char title[256];
+    snprintf(title, sizeof(title), "%s — pick tmuxp template", host_label);
+
+    int picked = submenu_loop(title, items, item_count, NULL);
+    if (picked < 0) return result;
+
+    if (picked == 0) {
+        result.kind = TPL_DEFAULT;
+    } else {
+        result.kind = TPL_NAMED;
+        size_t len = strlen(templates[picked - 1]);
+        if (len >= sizeof(result.name)) len = sizeof(result.name) - 1;
+        memcpy(result.name, templates[picked - 1], len);
+        result.name[len] = '\0';
+    }
+    return result;
 }

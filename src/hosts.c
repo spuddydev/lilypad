@@ -1,5 +1,6 @@
 #include "hosts.h"
 
+#include <dirent.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -286,4 +287,93 @@ int fetch_sessions(const char *host, const char *jump, char sessions[][128], int
         count++;
     }
     return count;
+}
+
+static const char DEV_SPLIT_YAML[] =
+    "session_name: dev\n"
+    "windows:\n"
+    "  - window_name: dev\n"
+    "    layout: even-horizontal\n"
+    "    panes:\n"
+    "      - null\n"
+    "      - null\n";
+
+void get_templates_dir(char *out, size_t size) {
+    const char *xdg = getenv("XDG_CONFIG_HOME");
+    const char *home = getenv("HOME");
+    if (xdg && *xdg)
+        snprintf(out, size, "%s/ssh-menu/tmuxp", xdg);
+    else if (home && *home)
+        snprintf(out, size, "%s/.config/ssh-menu/tmuxp", home);
+    else
+        snprintf(out, size, "tmuxp");
+}
+
+static int has_yaml_ext(const char *name) {
+    size_t n = strlen(name);
+    if (n >= 5 && strcmp(name + n - 5, ".yaml") == 0) return 5;
+    if (n >= 4 && strcmp(name + n - 4, ".yml") == 0) return 4;
+    return 0;
+}
+
+int list_templates(char names[][128], int max) {
+    char dir[MAX_PATH];
+    get_templates_dir(dir, sizeof(dir));
+    DIR *d = opendir(dir);
+    if (!d) return 0;
+    int count = 0;
+    struct dirent *e;
+    while ((e = readdir(d)) && count < max) {
+        if (e->d_name[0] == '.') continue;
+        int ext = has_yaml_ext(e->d_name);
+        if (!ext) continue;
+        size_t base_len = strlen(e->d_name) - ext;
+        if (base_len >= 128) base_len = 127;
+        memcpy(names[count], e->d_name, base_len);
+        names[count][base_len] = '\0';
+        count++;
+    }
+    closedir(d);
+    return count;
+}
+
+int install_default_templates(void) {
+    char dir[MAX_PATH];
+    get_templates_dir(dir, sizeof(dir));
+    char names[1][128];
+    if (list_templates(names, 1) > 0) return 0;
+    mkdir_p(dir);
+    char path[MAX_PATH];
+    snprintf(path, sizeof(path), "%s/dev-split.yaml", dir);
+    FILE *f = fopen(path, "w");
+    if (!f) return -1;
+    fputs(DEV_SPLIT_YAML, f);
+    fclose(f);
+    return 1;
+}
+
+int install_template_from_path(const char *src) {
+    if (!has_yaml_ext(src)) {
+        fprintf(stderr, "Template must end in .yaml or .yml\n");
+        return -1;
+    }
+    FILE *in = fopen(src, "r");
+    if (!in) { perror(src); return -1; }
+    char dir[MAX_PATH];
+    get_templates_dir(dir, sizeof(dir));
+    mkdir_p(dir);
+    const char *base = strrchr(src, '/');
+    base = base ? base + 1 : src;
+    char dest[MAX_PATH];
+    snprintf(dest, sizeof(dest), "%s/%s", dir, base);
+    FILE *out = fopen(dest, "w");
+    if (!out) { perror(dest); fclose(in); return -1; }
+    char buf[4096];
+    size_t n;
+    while ((n = fread(buf, 1, sizeof(buf), in)) > 0)
+        if (fwrite(buf, 1, n, out) != n) { perror(dest); fclose(in); fclose(out); return -1; }
+    fclose(in);
+    fclose(out);
+    fprintf(stderr, "Installed template at %s\n", dest);
+    return 0;
 }

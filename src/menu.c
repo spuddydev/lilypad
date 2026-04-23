@@ -95,6 +95,10 @@ static int host_has_tmux(const Host *h) {
     return h->markers[0] != '?' && strchr(h->markers, 't') == NULL;
 }
 
+static int host_has_tmuxp(const Host *h) {
+    return h->markers[0] != '?' && strchr(h->markers, 'p') == NULL;
+}
+
 static int exec_ssh_plain(const Host *h) {
     if (h->jump[0]) execlp("ssh", "ssh", "-J", h->jump, h->host, NULL);
     else            execlp("ssh", "ssh", h->host, NULL);
@@ -107,6 +111,54 @@ static int exec_ssh_tmux(const Host *h, const char *remote_cmd) {
     else            execlp("ssh", "ssh", "-t", h->host, remote_cmd, NULL);
     perror("ssh");
     return 1;
+}
+
+static int scp_template(const Host *h, const char *src, const char *remote_path) {
+    pid_t pid = fork();
+    if (pid < 0) { perror("fork"); return -1; }
+    if (pid == 0) {
+        char dest[MAX_PATH];
+        snprintf(dest, sizeof(dest), "%s:%s", h->host, remote_path);
+        if (h->jump[0])
+            execlp("scp", "scp", "-q", "-J", h->jump, src, dest, NULL);
+        else
+            execlp("scp", "scp", "-q", src, dest, NULL);
+        perror("scp");
+        _exit(127);
+    }
+    int status;
+    waitpid(pid, &status, 0);
+    return (WIFEXITED(status) && WEXITSTATUS(status) == 0) ? 0 : -1;
+}
+
+static int exec_template(const Host *h, const char *template_name) {
+    char dir[MAX_PATH], src[MAX_PATH];
+    get_templates_dir(dir, sizeof(dir));
+    snprintf(src, sizeof(src), "%s/%s.yaml", dir, template_name);
+    if (access(src, R_OK) != 0)
+        snprintf(src, sizeof(src), "%s/%s.yml", dir, template_name);
+    if (access(src, R_OK) != 0) {
+        fprintf(stderr, "Template not found: %s\n", template_name);
+        return 1;
+    }
+    char remote_path[MAX_PATH];
+    snprintf(remote_path, sizeof(remote_path), "/tmp/ssh-menu-%s.yaml", template_name);
+    if (scp_template(h, src, remote_path) != 0) {
+        fprintf(stderr, "scp failed\n");
+        return 1;
+    }
+    char remote_cmd[512];
+    snprintf(remote_cmd, sizeof(remote_cmd),
+             "tmuxp load -y %s; rm -f %s", remote_path, remote_path);
+    return exec_ssh_tmux(h, remote_cmd);
+}
+
+static int cmd_template_add(int argc, char *argv[]) {
+    if (argc != 3) {
+        fprintf(stderr, "Usage: %s --template-add path/to/file.yaml\n", argv[0]);
+        return 1;
+    }
+    return install_template_from_path(argv[2]) == 0 ? 0 : 1;
 }
 
 static int cmd_menu(void) {
@@ -127,13 +179,25 @@ static int cmd_menu(void) {
         intent = INTENT_SSH;
 
     SubChoice sc = {SUB_CANCEL, ""};
+    TemplatePick tp = {TPL_CANCEL, ""};
     if (intent == INTENT_TMUX_CHOOSE) {
         ui_status("Loading sessions...");
         char sessions[16][128];
         int ns = fetch_sessions(h->host, h->jump, sessions, 16);
         if (ns < 0) ns = 0;
-        sc = run_tmux_menu(h->nick, sessions, ns);
+        sc = run_tmux_menu(h->nick, sessions, ns, host_has_tmuxp(h));
         if (sc.kind == SUB_CANCEL) { ui_end(); return 0; }
+
+        if (sc.kind == SUB_NEW) {
+            char templates[32][128];
+            int nt = host_has_tmuxp(h) ? list_templates(templates, 32) : 0;
+            if (nt > 0) {
+                tp = run_template_menu(h->nick, templates, nt);
+                if (tp.kind == TPL_CANCEL) { ui_end(); return 0; }
+            } else {
+                tp.kind = TPL_DEFAULT;
+            }
+        }
     }
 
     ui_end();
@@ -143,6 +207,9 @@ static int cmd_menu(void) {
 
     if (intent == INTENT_SSH || (intent == INTENT_TMUX_CHOOSE && sc.kind == SUB_PLAIN))
         return exec_ssh_plain(h);
+
+    if (sc.kind == SUB_NEW && tp.kind == TPL_NAMED)
+        return exec_template(h, tp.name);
 
     if (intent == INTENT_TMUX_DEFAULT || sc.kind == SUB_NEW) {
         snprintf(remote_cmd, sizeof(remote_cmd), "%s new -A -s main", prefix);
@@ -158,7 +225,10 @@ static int cmd_menu(void) {
 }
 
 int main(int argc, char *argv[]) {
+    install_default_templates();
     if (argc > 1 && strcmp(argv[1], "--add") == 0)
         return cmd_add(argc, argv);
+    if (argc > 1 && strcmp(argv[1], "--template-add") == 0)
+        return cmd_template_add(argc, argv);
     return cmd_menu();
 }

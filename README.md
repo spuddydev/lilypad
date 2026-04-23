@@ -21,6 +21,14 @@ Requires a C compiler and ncurses. macOS ships this out of the box; on Debian/Ub
 - `nickname` must not contain whitespace and must be unique.
 - `jump_hosts` is optional and passed to `ssh -J`. Use commas for multiple hops (e.g. `u1@a,u2@b`).
 
+### Add a tmuxp template
+
+```
+./menu --template-add path/to/file.yaml
+```
+
+Copies the YAML into `~/.config/ssh-menu/tmuxp/`. The template picker lists anything in that directory.
+
 ### Open the menu
 
 ```
@@ -37,7 +45,7 @@ Requires a C compiler and ncurses. macOS ships this out of the box; on Debian/Ub
 
 Red markers next to a host flag what is **missing**: `t` = no tmux, `p` = no tmuxp, `?` = probe failed. No markers means the host is fully set up. Probing happens automatically on `--add` and on demand with `r`.
 
-Hosts with tmux installed get a second screen on `Enter`: pick `Plain shell`, `New tmux session`, or attach to one of the existing `tmux ls` sessions. iTerm2 sessions use `tmux -CC` automatically; other terminals get plain tmux.
+Hosts with tmux installed get a second screen on `Enter`: pick `Plain shell`, `New tmux session`, or attach to one of the existing `tmux ls` sessions. Selecting `New tmux session` opens a third screen with tmuxp templates (from `~/.config/ssh-menu/tmuxp/`); picking `default` skips templates and just runs `tmux new`. iTerm2 sessions use `tmux -CC` automatically for non-template paths; other terminals get plain tmux.
 
 ## Hosts file
 

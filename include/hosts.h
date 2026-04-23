@@ -20,4 +20,9 @@ int probe_host(const char *host, const char *jump, char *out, size_t outsize);
  * none, or -1 on ssh error. */
 int fetch_sessions(const char *host, const char *jump, char sessions[][128], int max);
 
+void get_templates_dir(char *out, size_t size);
+int  list_templates(char names[][128], int max);
+int  install_default_templates(void);
+int  install_template_from_path(const char *src);
+
 #endif
