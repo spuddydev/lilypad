@@ -1,6 +1,6 @@
 # ssh-menu
 
-Tiny ncurses menu for quickly SSH-ing into saved hosts. macOS only (uses `_NSGetExecutablePath` to locate the hosts file next to the binary).
+Tiny ncurses menu for quickly SSH-ing into saved hosts. Runs on macOS and Linux — the `hosts` file is resolved next to the binary.
 
 ## Build
 
@@ -8,7 +8,7 @@ Tiny ncurses menu for quickly SSH-ing into saved hosts. macOS only (uses `_NSGet
 make
 ```
 
-Requires a C compiler and `curses`, both of which ship with macOS.
+Requires a C compiler and ncurses. macOS ships this out of the box; on Debian/Ubuntu, `sudo apt install libncurses-dev`.
 
 ## Usage
 

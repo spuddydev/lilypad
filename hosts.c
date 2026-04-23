@@ -1,15 +1,31 @@
 #include "hosts.h"
 
 #include <libgen.h>
-#include <mach-o/dyld.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+#include <stdint.h>
+#else
+#include <unistd.h>
+#endif
+
+static int get_exe_path(char *out, size_t size) {
+#ifdef __APPLE__
+    uint32_t len = (uint32_t)size;
+    return _NSGetExecutablePath(out, &len) == 0 ? 0 : -1;
+#else
+    ssize_t n = readlink("/proc/self/exe", out, size - 1);
+    if (n < 0) return -1;
+    out[n] = '\0';
+    return 0;
+#endif
+}
+
 void get_hosts_path(char *out, size_t size) {
     char exe[MAX_PATH];
-    uint32_t len = sizeof(exe);
-    if (_NSGetExecutablePath(exe, &len) != 0) {
+    if (get_exe_path(exe, sizeof(exe)) != 0) {
         snprintf(out, size, "hosts");
         return;
     }

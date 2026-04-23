@@ -1,6 +1,12 @@
 CC      = cc
 CFLAGS  = -Wall -Wextra -O2
-LDLIBS  = -lcurses
+
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Linux)
+  LDLIBS = -lncurses
+else
+  LDLIBS = -lcurses
+endif
 
 OBJS = menu.o hosts.o ui.o
 
