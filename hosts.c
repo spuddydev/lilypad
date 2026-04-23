@@ -3,12 +3,11 @@
 #include <libgen.h>
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
 #include <stdint.h>
-#else
-#include <unistd.h>
 #endif
 
 static int get_exe_path(char *out, size_t size) {
@@ -32,6 +31,38 @@ void get_hosts_path(char *out, size_t size) {
     snprintf(out, size, "%s/hosts", dirname(exe));
 }
 
+/* Parse an in-place, whitespace-delimited hosts line.
+ * Format: "nick host [jump] [#markers]"
+ * Writes pointers into `line` (which is modified). Returns 1 on success. */
+static int parse_line(char *line, char **nick, char **host, char **jump, char **markers) {
+    *nick = *host = *jump = *markers = NULL;
+    char *save = NULL;
+    char *fields[4] = {0};
+    int nf = 0;
+    for (char *t = strtok_r(line, " \t\r\n", &save);
+         t && nf < 4;
+         t = strtok_r(NULL, " \t\r\n", &save))
+        fields[nf++] = t;
+    if (nf < 2) return 0;
+    *nick = fields[0];
+    *host = fields[1];
+    if (nf >= 3 && fields[nf - 1][0] == '#') {
+        *markers = fields[nf - 1] + 1;
+        nf--;
+    }
+    if (nf >= 3) *jump = fields[2];
+    return 1;
+}
+
+static void copy_field(char *dst, size_t dstsz, const char *src) {
+    if (dstsz == 0) return;
+    if (!src) { dst[0] = '\0'; return; }
+    size_t n = strlen(src);
+    if (n >= dstsz) n = dstsz - 1;
+    memcpy(dst, src, n);
+    dst[n] = '\0';
+}
+
 int load_hosts(const char *path, Host *hosts, int max) {
     FILE *f = fopen(path, "r");
     if (!f) return 0;
@@ -39,11 +70,14 @@ int load_hosts(const char *path, Host *hosts, int max) {
     char line[MAX_LINE];
     while (count < max && fgets(line, sizeof(line), f)) {
         line[strcspn(line, "\n")] = '\0';
-        hosts[count].jump[0] = '\0';
-        int fields = sscanf(line, "%511s %511s %511[^\n]",
-                            hosts[count].nick, hosts[count].host, hosts[count].jump);
-        if (fields >= 2)
-            count++;
+        char *nick, *host, *jump, *markers;
+        if (!parse_line(line, &nick, &host, &jump, &markers)) continue;
+        Host *h = &hosts[count];
+        copy_field(h->nick, sizeof(h->nick), nick);
+        copy_field(h->host, sizeof(h->host), host);
+        copy_field(h->jump, sizeof(h->jump), jump);
+        copy_field(h->markers, sizeof(h->markers), markers);
+        count++;
     }
     fclose(f);
     return count;
@@ -84,5 +118,42 @@ int add_host(const char *path, const char *nick, const char *host, const char *j
     else
         fprintf(f, "%s %s\n", nick, host);
     fclose(f);
+    return 0;
+}
+
+int update_markers(const char *path, const char *nick, const char *markers) {
+    FILE *f = fopen(path, "r");
+    if (!f) return -1;
+
+    char tmp_path[MAX_PATH];
+    snprintf(tmp_path, sizeof(tmp_path), "%s.tmp", path);
+    FILE *w = fopen(tmp_path, "w");
+    if (!w) { fclose(f); return -1; }
+
+    char line[MAX_LINE];
+    int found = 0;
+    while (fgets(line, sizeof(line), f)) {
+        char copy[MAX_LINE];
+        copy_field(copy, sizeof(copy), line);
+        copy[strcspn(copy, "\n")] = '\0';
+        char *n, *h, *j, *m;
+        if (parse_line(copy, &n, &h, &j, &m) && strcmp(n, nick) == 0) {
+            found = 1;
+            if (j && *j) {
+                if (markers && *markers) fprintf(w, "%s %s %s #%s\n", n, h, j, markers);
+                else                     fprintf(w, "%s %s %s\n", n, h, j);
+            } else {
+                if (markers && *markers) fprintf(w, "%s %s #%s\n", n, h, markers);
+                else                     fprintf(w, "%s %s\n", n, h);
+            }
+        } else {
+            fputs(line, w);
+        }
+    }
+    fclose(f);
+    fclose(w);
+
+    if (!found) { unlink(tmp_path); return -1; }
+    if (rename(tmp_path, path) != 0) { unlink(tmp_path); return -1; }
     return 0;
 }

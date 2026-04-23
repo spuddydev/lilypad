@@ -7,5 +7,6 @@
 void get_hosts_path(char *out, size_t size);
 int load_hosts(const char *path, Host *hosts, int max);
 int add_host(const char *path, const char *nick, const char *host, const char *jump);
+int update_markers(const char *path, const char *nick, const char *markers);
 
 #endif

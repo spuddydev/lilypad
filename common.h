@@ -9,6 +9,7 @@ typedef struct {
     char nick[MAX_LINE];
     char host[MAX_LINE];
     char jump[MAX_LINE];
+    char markers[8];
 } Host;
 
 #endif
