@@ -192,7 +192,7 @@ static int cmd_menu(void) {
 
         if (sc.kind == SUB_NEW) {
             char templates[32][128];
-            int nt = host_has_tmuxp(h) ? list_templates(templates, 32) : 0;
+            int nt = list_templates(templates, 32);
             if (nt > 0) {
                 tp = run_template_menu(h->nick, templates, nt);
                 if (tp.kind == TPL_CANCEL) { ui_end(); return 0; }

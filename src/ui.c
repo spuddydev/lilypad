@@ -2,6 +2,7 @@
 #include "hosts.h"
 
 #include <curses.h>
+#include <locale.h>
 #include <stdio.h>
 #include <string.h>
 #include <strings.h>
@@ -37,6 +38,7 @@ static int apply_filter(const Host *hosts, int count, const char *q, int *out) {
 }
 
 void ui_begin(void) {
+    setlocale(LC_ALL, "");
     initscr();
     noecho();
     cbreak();
@@ -332,9 +334,9 @@ SubChoice run_tmux_menu(const char *host_label, char sessions[][128], int n,
     }
 
     char title[256];
-    snprintf(title, sizeof(title), "%s — pick session", host_label);
+    snprintf(title, sizeof(title), "%s: pick session", host_label);
 
-    const char *warn = has_tmuxp ? NULL : "tmuxp not on host — templates won't load";
+    const char *warn = has_tmuxp ? NULL : "tmuxp not on host:templates won't load";
     int picked = submenu_loop(title, items, item_count, warn);
     if (picked < 0) return result;
 
@@ -364,7 +366,7 @@ TemplatePick run_template_menu(const char *host_label, char templates[][128], in
         items[1 + i] = templates[i];
 
     char title[256];
-    snprintf(title, sizeof(title), "%s — pick tmuxp template", host_label);
+    snprintf(title, sizeof(title), "%s: pick tmuxp template", host_label);
 
     int picked = submenu_loop(title, items, item_count, NULL);
     if (picked < 0) return result;
