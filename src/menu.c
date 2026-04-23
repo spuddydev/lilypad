@@ -238,7 +238,7 @@ static int cmd_menu(void) {
 
     const Host *h = NULL;
     Intent intent = INTENT_CANCEL;
-    SubChoice sc = {SUB_CANCEL, ""};
+    SubChoice sc = {SUB_CANCEL, "", 0};
     TemplatePick tp = {TPL_CANCEL, ""};
     char new_session[64] = "main";
 
@@ -290,7 +290,7 @@ static int cmd_menu(void) {
     ui_end();
 
     const char *prefix = (is_iterm() && !sc.force_plain) ? "tmux -CC" : "tmux";
-    char remote_cmd[256];
+    char remote_cmd[1024];
 
     if (intent == INTENT_SSH || (intent == INTENT_TMUX_CHOOSE && sc.kind == SUB_PLAIN))
         return exec_ssh_plain(h);
