@@ -31,7 +31,7 @@ static int load_hosts(const char *path, Host *hosts, int max) {
     while (count < max && fgets(line, sizeof(line), f)) {
         line[strcspn(line, "\n")] = '\0';
         hosts[count].jump[0] = '\0';
-        int fields = sscanf(line, "%s %s %[^\n]",
+        int fields = sscanf(line, "%511s %511s %511[^\n]",
                             hosts[count].nick, hosts[count].host, hosts[count].jump);
         if (fields >= 2)
             count++;
@@ -62,7 +62,7 @@ static int cmd_add(int argc, char *argv[]) {
         char line[MAX_LINE];
         while (fgets(line, sizeof(line), f)) {
             char existing[MAX_LINE];
-            if (sscanf(line, "%s", existing) == 1 && strcmp(existing, nick) == 0) {
+            if (sscanf(line, "%511s", existing) == 1 && strcmp(existing, nick) == 0) {
                 fclose(f);
                 fprintf(stderr, "Error: nickname '%s' already exists\n", nick);
                 return 1;
@@ -93,7 +93,7 @@ static void draw_menu(Host *hosts, int count, int selected) {
     const char *title = "SSH Menu";
     int tx = (w - (int)strlen(title)) / 2;
     mvaddstr(1, tx, title);
-    mvchgat(1, tx, strlen(title), A_BOLD | A_UNDERLINE, 0, NULL);
+    mvchgat(1, tx, (int)strlen(title), A_BOLD | A_UNDERLINE, 0, NULL);
 
     for (int i = 0; i < count; i++) {
         char label[MAX_LINE * 2 + 16];
@@ -139,8 +139,7 @@ static int cmd_menu(void) {
     }
 
     int selected = 0;
-    char chosen[MAX_LINE] = {0};
-    char chosen_jump[MAX_LINE] = {0};
+    int chosen = -1;
 
     while (1) {
         draw_menu(hosts, count, selected);
@@ -151,16 +150,14 @@ static int cmd_menu(void) {
         else if ((key == KEY_DOWN || key == 'j') && selected < count - 1)
             selected++;
         else if (key == '\n' || key == KEY_ENTER) {
-            strncpy(chosen, hosts[selected].host, sizeof(chosen) - 1);
-            strncpy(chosen_jump, hosts[selected].jump, sizeof(chosen_jump) - 1);
+            chosen = selected;
             break;
         } else if (key == 'q') {
             break;
         } else if (key >= '1' && key <= '9') {
             int idx = key - '1';
             if (idx < count) {
-                strncpy(chosen, hosts[idx].host, sizeof(chosen) - 1);
-                strncpy(chosen_jump, hosts[idx].jump, sizeof(chosen_jump) - 1);
+                chosen = idx;
                 break;
             }
         }
@@ -168,11 +165,12 @@ static int cmd_menu(void) {
 
     endwin();
 
-    if (chosen[0]) {
-        if (chosen_jump[0])
-            execlp("ssh", "ssh", "-J", chosen_jump, chosen, NULL);
+    if (chosen >= 0) {
+        const Host *h = &hosts[chosen];
+        if (h->jump[0])
+            execlp("ssh", "ssh", "-J", h->jump, h->host, NULL);
         else
-            execlp("ssh", "ssh", chosen, NULL);
+            execlp("ssh", "ssh", h->host, NULL);
         perror("ssh");
         return 1;
     }
