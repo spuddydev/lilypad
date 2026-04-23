@@ -15,7 +15,7 @@ menu: $(OBJS)
 
 menu.o:  menu.c  hosts.h ui.h common.h
 hosts.o: hosts.c hosts.h common.h
-ui.o:    ui.c    ui.h    common.h
+ui.o:    ui.c    ui.h    hosts.h common.h
 
 clean:
 	rm -f menu $(OBJS)

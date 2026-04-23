@@ -92,7 +92,7 @@ static int cmd_menu(void) {
     Host hosts[MAX_HOSTS];
     int count = load_hosts(hosts_path, hosts, MAX_HOSTS);
 
-    int chosen = run_menu(hosts, count);
+    int chosen = run_menu(hosts, count, hosts_path);
     if (chosen < 0) return 0;
 
     const Host *h = &hosts[chosen];

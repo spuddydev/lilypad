@@ -1,4 +1,5 @@
 #include "ui.h"
+#include "hosts.h"
 
 #include <curses.h>
 #include <stdio.h>
@@ -59,7 +60,9 @@ static void draw_menu(const Host *hosts, const int *filtered, int fcount,
         const Host *hh = &hosts[filtered[i]];
         char label[MAX_LINE * 2 + 16];
         snprintf(label, sizeof(label), "  %d. %s: %s  ", i + 1, hh->nick, hh->host);
-        int x = (w - display_width(label)) / 2;
+        int lw = display_width(label);
+        int mw = hh->markers[0] ? (int)strlen(hh->markers) + 1 : 0;
+        int x = (w - lw - mw) / 2;
         int row = 4 + (i - top);
         if (i == selected) {
             attron(COLOR_PAIR(1));
@@ -67,6 +70,11 @@ static void draw_menu(const Host *hosts, const int *filtered, int fcount,
             attroff(COLOR_PAIR(1));
         } else {
             mvaddstr(row, x, label);
+        }
+        if (hh->markers[0]) {
+            attron(COLOR_PAIR(2) | A_BOLD);
+            mvaddstr(row, x + lw + 1, hh->markers);
+            attroff(COLOR_PAIR(2) | A_BOLD);
         }
     }
 
@@ -85,7 +93,7 @@ static void draw_menu(const Host *hosts, const int *filtered, int fcount,
 
     const char *hint = in_search
         ? "type to filter  ↑↓ navigate  Enter select  Esc cancel"
-        : "↑↓/jk navigate  Enter select  s search  q quit";
+        : "↑↓/jk navigate  Enter select  s search  r refresh  q quit";
     attron(A_DIM);
     mvaddstr(h - 2, (w - display_width(hint)) / 2, hint);
     attroff(A_DIM);
@@ -93,7 +101,28 @@ static void draw_menu(const Host *hosts, const int *filtered, int fcount,
     refresh();
 }
 
-int run_menu(Host *hosts, int count) {
+static void refresh_host(Host *h, const char *hosts_path) {
+    int hh, ww;
+    getmaxyx(stdscr, hh, ww);
+    const char *msg = "Probing...";
+    move(hh - 2, 0);
+    clrtoeol();
+    attron(A_DIM);
+    mvaddstr(hh - 2, (ww - display_width(msg)) / 2, msg);
+    attroff(A_DIM);
+    refresh();
+
+    char new_markers[8];
+    if (probe_host(h->host, h->jump, new_markers, sizeof(new_markers)) != 0)
+        return;
+    if (hosts_path) update_markers(hosts_path, h->nick, new_markers);
+    size_t n = strlen(new_markers);
+    if (n >= sizeof(h->markers)) n = sizeof(h->markers) - 1;
+    memcpy(h->markers, new_markers, n);
+    h->markers[n] = '\0';
+}
+
+int run_menu(Host *hosts, int count, const char *hosts_path) {
     initscr();
     noecho();
     cbreak();
@@ -101,6 +130,7 @@ int run_menu(Host *hosts, int count) {
     keypad(stdscr, TRUE);
     start_color();
     init_pair(1, COLOR_BLACK, COLOR_CYAN);
+    init_pair(2, COLOR_RED, COLOR_BLACK);
 
     if (count == 0) {
         mvaddstr(0, 0, "No hosts found. Use: menu --add name@address nickname");
@@ -177,6 +207,9 @@ int run_menu(Host *hosts, int count) {
                 break;
             } else if (key == 's' || key == '/') {
                 in_search = 1;
+            } else if (key == 'r') {
+                if (fcount > 0)
+                    refresh_host(&hosts[filtered[selected]], hosts_path);
             } else if (key >= '1' && key <= '9') {
                 int idx = key - '1';
                 if (idx < fcount) {

@@ -30,7 +30,10 @@ Requires a C compiler and ncurses. macOS ships this out of the box; on Debian/Ub
 - `↑`/`↓` or `j`/`k` to move
 - `Enter`, or digits `1`–`9`, to pick
 - `s` (or `/`) to filter by nickname/address — Esc clears, Enter picks
+- `r` to re-probe the highlighted host (refreshes markers)
 - `q` to quit
+
+Red markers next to a host flag what is **missing**: `t` = no tmux, `p` = no tmuxp, `?` = probe failed. No markers means the host is fully set up. Probing happens automatically on `--add` and on demand with `r`.
 
 The selected host is connected via `ssh`, with `ssh -J <jump_hosts>` when one is set.
 
