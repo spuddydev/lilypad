@@ -230,8 +230,7 @@ static int cmd_menu(void) {
             intent = INTENT_SSH;
 
         if (intent == INTENT_TMUX_DEFAULT) {
-            if (ui_prompt("New tmux session name:", new_session, sizeof(new_session), "main") != 0)
-                continue;
+            snprintf(new_session, sizeof(new_session), "main");
             break;
         }
         if (intent != INTENT_TMUX_CHOOSE) break;
@@ -276,7 +275,12 @@ static int cmd_menu(void) {
     if (sc.kind == SUB_NEW && tp.kind == TPL_NAMED)
         return exec_template(h, tp.name);
 
-    if (intent == INTENT_TMUX_DEFAULT || sc.kind == SUB_NEW) {
+    if (intent == INTENT_TMUX_DEFAULT) {
+        snprintf(remote_cmd, sizeof(remote_cmd), "tmux new -A -s '%s'", new_session);
+        return exec_ssh_tmux(h, remote_cmd);
+    }
+
+    if (sc.kind == SUB_NEW) {
         snprintf(remote_cmd, sizeof(remote_cmd), "%s new -A -s '%s'", prefix, new_session);
         return exec_ssh_tmux(h, remote_cmd);
     }
