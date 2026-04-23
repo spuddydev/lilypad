@@ -252,10 +252,7 @@ static int cmd_menu(void) {
             !host_has_tmux(h))
             intent = INTENT_SSH;
 
-        if (intent == INTENT_TMUX_DEFAULT) {
-            snprintf(new_session, sizeof(new_session), "main");
-            break;
-        }
+        if (intent == INTENT_TMUX_DEFAULT) break;
         if (intent != INTENT_TMUX_CHOOSE) break;
 
         ui_status("Loading sessions...");
@@ -301,9 +298,7 @@ static int cmd_menu(void) {
     char esc[256];
 
     if (intent == INTENT_TMUX_DEFAULT) {
-        shell_sq_escape(esc, sizeof(esc), new_session);
-        snprintf(remote_cmd, sizeof(remote_cmd), "tmux new -A -s '%s'", esc);
-        return exec_ssh_tmux(h, remote_cmd);
+        return exec_ssh_tmux(h, "tmux new");
     }
 
     if (sc.kind == SUB_NEW) {
