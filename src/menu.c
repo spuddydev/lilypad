@@ -176,6 +176,7 @@ static int cmd_menu(void) {
     Intent intent = INTENT_CANCEL;
     SubChoice sc = {SUB_CANCEL, ""};
     TemplatePick tp = {TPL_CANCEL, ""};
+    char new_session[64] = "main";
 
     while (1) {
         HostPick hp = run_host_menu(hosts, count, hosts_path);
@@ -187,6 +188,11 @@ static int cmd_menu(void) {
             !host_has_tmux(h))
             intent = INTENT_SSH;
 
+        if (intent == INTENT_TMUX_DEFAULT) {
+            if (ui_prompt("New tmux session name:", new_session, sizeof(new_session), "main") != 0)
+                continue;
+            break;
+        }
         if (intent != INTENT_TMUX_CHOOSE) break;
 
         ui_status("Loading sessions...");
@@ -203,11 +209,17 @@ static int cmd_menu(void) {
 
             char templates[32][128];
             int nt = list_templates(templates, 32);
-            if (nt == 0) { tp.kind = TPL_DEFAULT; break; }
+            if (nt == 0) { tp.kind = TPL_DEFAULT; }
+            else {
+                tp = run_template_menu(h->nick, templates, nt);
+                if (tp.kind == TPL_CANCEL) continue;
+            }
 
-            tp = run_template_menu(h->nick, templates, nt);
-            if (tp.kind != TPL_CANCEL) break;
-            /* TPL_CANCEL falls through — re-show the tmux submenu */
+            if (tp.kind == TPL_DEFAULT) {
+                if (ui_prompt("New tmux session name:", new_session, sizeof(new_session), "main") != 0)
+                    continue;
+            }
+            break;
         }
         if (!back_to_main) break;
     }
@@ -224,7 +236,7 @@ static int cmd_menu(void) {
         return exec_template(h, tp.name);
 
     if (intent == INTENT_TMUX_DEFAULT || sc.kind == SUB_NEW) {
-        snprintf(remote_cmd, sizeof(remote_cmd), "%s new -A -s main", prefix);
+        snprintf(remote_cmd, sizeof(remote_cmd), "%s new -A -s '%s'", prefix, new_session);
         return exec_ssh_tmux(h, remote_cmd);
     }
 

@@ -1,6 +1,7 @@
 #ifndef SSH_MENU_UI_H
 #define SSH_MENU_UI_H
 
+#include <stddef.h>
 #include "common.h"
 
 typedef enum {
@@ -41,6 +42,10 @@ typedef struct {
 void ui_begin(void);
 void ui_end(void);
 void ui_status(const char *msg);
+
+/* Inline text input. Pre-fills `out` with `default_value` (may be NULL).
+ * Returns 0 when the user accepts with Enter, -1 on Esc/cancel. */
+int ui_prompt(const char *label, char *out, size_t size, const char *default_value);
 
 HostPick run_host_menu(Host *hosts, int count, const char *hosts_path);
 SubChoice run_tmux_menu(const char *host_label, char sessions[][128], int n, int has_tmuxp);

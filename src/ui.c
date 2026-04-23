@@ -63,6 +63,54 @@ void ui_status(const char *msg) {
     refresh();
 }
 
+int ui_prompt(const char *label, char *out, size_t size, const char *default_value) {
+    if (size == 0) return -1;
+    if (default_value) {
+        size_t n = strlen(default_value);
+        if (n >= size) n = size - 1;
+        memcpy(out, default_value, n);
+        out[n] = '\0';
+    } else {
+        out[0] = '\0';
+    }
+    size_t pos = strlen(out);
+
+    curs_set(1);
+    while (1) {
+        erase();
+        int h, w;
+        getmaxyx(stdscr, h, w);
+
+        int lx = (w - display_width(label)) / 2;
+        mvaddstr(h / 2 - 1, lx, label);
+
+        char line[256];
+        snprintf(line, sizeof(line), "> %s", out);
+        int line_w = display_width(line);
+        int bx = (w - line_w) / 2;
+        mvaddstr(h / 2 + 1, bx, line);
+
+        const char *hint = "[enter] accept  [esc] cancel";
+        attron(A_DIM);
+        mvaddstr(h - 2, (w - display_width(hint)) / 2, hint);
+        attroff(A_DIM);
+
+        move(h / 2 + 1, bx + 2 + (int)pos);
+        refresh();
+
+        int key = getch();
+        if (key == 27) { curs_set(0); return -1; }
+        if (key == '\n' || key == KEY_ENTER) {
+            if (pos > 0) { curs_set(0); return 0; }
+        } else if (key == KEY_BACKSPACE || key == 127 || key == 8) {
+            if (pos > 0) { pos--; out[pos] = '\0'; }
+        } else if (key >= 32 && key < 127 && pos + 1 < size) {
+            out[pos++] = (char)key;
+            out[pos] = '\0';
+        }
+    }
+}
+
 static void draw_menu(const Host *hosts, const int *filtered, int fcount,
                       int selected, int top, int visible,
                       const char *query, int in_search) {
