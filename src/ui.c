@@ -4,6 +4,7 @@
 #include <curses.h>
 #include <locale.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <strings.h>
 
@@ -386,7 +387,11 @@ SubChoice run_tmux_menu(const char *host_label, char sessions[][128], int n,
     snprintf(title, sizeof(title), "%s: pick session", host_label);
 
     const char *warn = has_tmuxp ? NULL : "tmuxp not on host: templates won't load";
-    const char *hint = "[j/k] move  [enter] select  [t] plain (no -CC)  [q] back";
+    const char *term = getenv("TERM_PROGRAM");
+    int is_iterm_local = term && strcmp(term, "iTerm.app") == 0;
+    const char *hint = is_iterm_local
+        ? "[j/k] move  [enter] select  [t] plain (no -CC)  [q] back"
+        : "[j/k] move  [enter] select  [q] back";
 
     int selected = 0, top = 0;
     while (1) {
