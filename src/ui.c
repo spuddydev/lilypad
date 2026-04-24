@@ -64,6 +64,26 @@ void ui_status(const char *msg) {
     refresh();
 }
 
+static int ui_confirm(const char *msg) {
+    curs_set(0);
+    while (1) {
+        erase();
+        int h, w;
+        getmaxyx(stdscr, h, w);
+        attron(A_BOLD);
+        mvaddstr(h / 2 - 1, (w - display_width(msg)) / 2, msg);
+        attroff(A_BOLD);
+        const char *hint = "[y] yes  [n] no";
+        attron(A_DIM);
+        mvaddstr(h - 2, (w - display_width(hint)) / 2, hint);
+        attroff(A_DIM);
+        refresh();
+        int k = getch();
+        if (k == 'y' || k == 'Y') return 1;
+        if (k == 'n' || k == 'N' || k == 27 || k == 'q') return 0;
+    }
+}
+
 int ui_prompt(const char *label, char *out, size_t size, const char *default_value) {
     if (size == 0) return -1;
     if (default_value) {
@@ -169,7 +189,7 @@ static void draw_menu(const Host *hosts, const int *filtered, int fcount,
 
     const char *hint = in_search
         ? "type to filter  [enter] select  [esc] cancel"
-        : "[j/k] move  [enter] open  [s] ssh  [t] tmux  [/] search  [r] refresh  [q] quit";
+        : "[j/k] move  [J/K] reorder  [D] delete  [enter] open  [s] ssh  [t] tmux  [/] search  [r] refresh  [q] quit";
     attron(A_DIM);
     mvaddstr(h - 2, (w - display_width(hint)) / 2, hint);
     attroff(A_DIM);
@@ -198,10 +218,10 @@ static void refresh_host(Host *h, const char *hosts_path) {
     h->markers[n] = '\0';
 }
 
-HostPick run_host_menu(Host *hosts, int count, const char *hosts_path) {
+HostPick run_host_menu(Host *hosts, int *count, const char *hosts_path) {
     HostPick result = {-1, INTENT_CANCEL};
 
-    if (count == 0) {
+    if (*count == 0) {
         mvaddstr(0, 0, "No hosts found. Use: menu --add name@address nickname");
         getch();
         return result;
@@ -209,7 +229,7 @@ HostPick run_host_menu(Host *hosts, int count, const char *hosts_path) {
 
     int filtered[MAX_HOSTS];
     char query[64] = "";
-    int fcount = apply_filter(hosts, count, query, filtered);
+    int fcount = apply_filter(hosts, *count, query, filtered);
     int in_search = 0;
     int selected = 0;
     int top = 0;
@@ -230,7 +250,7 @@ HostPick run_host_menu(Host *hosts, int count, const char *hosts_path) {
             if (key == 27) {
                 in_search = 0;
                 query[0] = '\0';
-                fcount = apply_filter(hosts, count, query, filtered);
+                fcount = apply_filter(hosts, *count, query, filtered);
                 selected = 0;
                 top = 0;
             } else if (key == '\n' || key == KEY_ENTER) {
@@ -247,7 +267,7 @@ HostPick run_host_menu(Host *hosts, int count, const char *hosts_path) {
                 size_t n = strlen(query);
                 if (n > 0) {
                     query[n - 1] = '\0';
-                    fcount = apply_filter(hosts, count, query, filtered);
+                    fcount = apply_filter(hosts, *count, query, filtered);
                     selected = 0;
                     top = 0;
                 }
@@ -256,7 +276,7 @@ HostPick run_host_menu(Host *hosts, int count, const char *hosts_path) {
                 if (n + 1 < sizeof(query)) {
                     query[n] = (char)key;
                     query[n + 1] = '\0';
-                    fcount = apply_filter(hosts, count, query, filtered);
+                    fcount = apply_filter(hosts, *count, query, filtered);
                     selected = 0;
                     top = 0;
                 }
@@ -266,6 +286,29 @@ HostPick run_host_menu(Host *hosts, int count, const char *hosts_path) {
                 selected--;
             } else if ((key == KEY_DOWN || key == 'j') && selected < fcount - 1) {
                 selected++;
+            } else if ((key == KEY_SR || key == 'K') && selected > 0) {
+                int a = filtered[selected];
+                int b = filtered[selected - 1];
+                Host tmp = hosts[a]; hosts[a] = hosts[b]; hosts[b] = tmp;
+                selected--;
+                if (hosts_path) save_hosts(hosts_path, hosts, *count);
+            } else if ((key == KEY_SF || key == 'J') && selected < fcount - 1) {
+                int a = filtered[selected];
+                int b = filtered[selected + 1];
+                Host tmp = hosts[a]; hosts[a] = hosts[b]; hosts[b] = tmp;
+                selected++;
+                if (hosts_path) save_hosts(hosts_path, hosts, *count);
+            } else if ((key == KEY_SDC || key == KEY_DC || key == 'D') && fcount > 0) {
+                int idx = filtered[selected];
+                char msg[MAX_LINE + 32];
+                snprintf(msg, sizeof(msg), "Delete '%s'?", hosts[idx].nick);
+                if (ui_confirm(msg)) {
+                    for (int i = idx; i < *count - 1; i++) hosts[i] = hosts[i + 1];
+                    (*count)--;
+                    if (hosts_path) save_hosts(hosts_path, hosts, *count);
+                    fcount = apply_filter(hosts, *count, query, filtered);
+                    if (selected >= fcount) selected = fcount > 0 ? fcount - 1 : 0;
+                }
             } else if (key == '\n' || key == KEY_ENTER) {
                 if (fcount > 0) {
                     result.host_index = filtered[selected];
@@ -368,20 +411,11 @@ static int submenu_loop(const char *title, const char * const *items, int n,
     }
 }
 
-SubChoice run_tmux_menu(const char *host_label, char sessions[][128], int n,
-                        int has_tmuxp) {
+SubChoice run_tmux_menu(const char *host_label, const char *host, const char *jump,
+                        char sessions[][128], int *n, int has_tmuxp) {
     SubChoice result = {SUB_CANCEL, "", 0};
 
-    if (n > 16) n = 16;
-    int item_count = 2 + n;
-    const char *items[2 + 16];
-    char session_labels[16][160];
-    items[0] = "Plain shell";
-    items[1] = "New tmux session";
-    for (int i = 0; i < n; i++) {
-        snprintf(session_labels[i], sizeof(session_labels[i]), "Attach: %s", sessions[i]);
-        items[2 + i] = session_labels[i];
-    }
+    if (*n > 16) *n = 16;
 
     char title[256];
     snprintf(title, sizeof(title), "%s: pick session", host_label);
@@ -390,11 +424,21 @@ SubChoice run_tmux_menu(const char *host_label, char sessions[][128], int n,
     const char *term = getenv("TERM_PROGRAM");
     int is_iterm_local = term && strcmp(term, "iTerm.app") == 0;
     const char *hint = is_iterm_local
-        ? "[j/k] move  [enter] select  [t] plain (no -CC)  [q] back"
-        : "[j/k] move  [enter] select  [q] back";
+        ? "[j/k] move  [enter] select  [t] plain (no -CC)  [D] kill  [q] back"
+        : "[j/k] move  [enter] select  [D] kill  [q] back";
 
     int selected = 0, top = 0;
     while (1) {
+        int item_count = 2 + *n;
+        const char *items[2 + 16];
+        char session_labels[16][160];
+        items[0] = "Plain shell";
+        items[1] = "New tmux session";
+        for (int i = 0; i < *n; i++) {
+            snprintf(session_labels[i], sizeof(session_labels[i]), "Attach: %s", sessions[i]);
+            items[2 + i] = session_labels[i];
+        }
+
         int h, w;
         getmaxyx(stdscr, h, w);
         (void)w;
@@ -411,6 +455,19 @@ SubChoice run_tmux_menu(const char *host_label, char sessions[][128], int n,
             selected--;
         } else if ((key == KEY_DOWN || key == 'j') && selected < item_count - 1) {
             selected++;
+        } else if ((key == KEY_SDC || key == KEY_DC || key == 'D') && selected >= 2) {
+            int sidx = selected - 2;
+            char msg[256];
+            snprintf(msg, sizeof(msg), "Kill session '%s'?", sessions[sidx]);
+            if (ui_confirm(msg)) {
+                ui_status("Killing session...");
+                kill_session(host, jump, sessions[sidx]);
+                for (int i = sidx; i < *n - 1; i++)
+                    memcpy(sessions[i], sessions[i + 1], sizeof(sessions[i]));
+                (*n)--;
+                if (selected >= 2 + *n) selected = 2 + *n - 1;
+                if (selected < 0) selected = 0;
+            }
         } else if (key == '\n' || key == KEY_ENTER || key == 't') {
             int force_plain = (key == 't');
             if (selected == 0) {

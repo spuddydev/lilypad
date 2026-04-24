@@ -133,25 +133,6 @@ static int scp_template(const Host *h, const char *src, const char *remote_path)
     return (WIFEXITED(status) && WEXITSTATUS(status) == 0) ? 0 : -1;
 }
 
-/* Escape single quotes for safe embedding inside a single-quoted shell
- * string: ' becomes '\''. Truncates safely if dst is too small. */
-static void shell_sq_escape(char *dst, size_t dstsz, const char *src) {
-    size_t i = 0;
-    for (const char *p = src; *p; p++) {
-        if (*p == '\'') {
-            if (i + 4 >= dstsz) break;
-            dst[i++] = '\'';
-            dst[i++] = '\\';
-            dst[i++] = '\'';
-            dst[i++] = '\'';
-        } else {
-            if (i + 1 >= dstsz) break;
-            dst[i++] = *p;
-        }
-    }
-    dst[i < dstsz ? i : dstsz - 1] = '\0';
-}
-
 static int parse_session_name(const char *yaml_path, char *out, size_t size) {
     FILE *f = fopen(yaml_path, "r");
     if (!f) return -1;
@@ -243,7 +224,7 @@ static int cmd_menu(void) {
     char new_session[64] = "main";
 
     while (1) {
-        HostPick hp = run_host_menu(hosts, count, hosts_path);
+        HostPick hp = run_host_menu(hosts, &count, hosts_path);
         if (hp.host_index < 0) { ui_end(); return 0; }
 
         h = &hosts[hp.host_index];
@@ -262,7 +243,7 @@ static int cmd_menu(void) {
 
         int back_to_main = 0;
         while (1) {
-            sc = run_tmux_menu(h->nick, sessions, ns, host_has_tmuxp(h));
+            sc = run_tmux_menu(h->nick, h->host, h->jump, sessions, &ns, host_has_tmuxp(h));
             if (sc.kind == SUB_CANCEL) { back_to_main = 1; break; }
 
             if (sc.kind != SUB_NEW) break;

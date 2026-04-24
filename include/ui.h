@@ -48,8 +48,9 @@ void ui_status(const char *msg);
  * Returns 0 when the user accepts with Enter, -1 on Esc/cancel. */
 int ui_prompt(const char *label, char *out, size_t size, const char *default_value);
 
-HostPick run_host_menu(Host *hosts, int count, const char *hosts_path);
-SubChoice run_tmux_menu(const char *host_label, char sessions[][128], int n, int has_tmuxp);
+HostPick run_host_menu(Host *hosts, int *count, const char *hosts_path);
+SubChoice run_tmux_menu(const char *host_label, const char *host, const char *jump,
+                        char sessions[][128], int *n, int has_tmuxp);
 TemplatePick run_template_menu(const char *host_label, char templates[][128], int n);
 
 #endif

@@ -174,6 +174,81 @@ int update_markers(const char *path, const char *nick, const char *markers) {
     return 0;
 }
 
+int save_hosts(const char *path, const Host *hosts, int count) {
+    ensure_parent(path);
+    char tmp_path[MAX_PATH];
+    snprintf(tmp_path, sizeof(tmp_path), "%s.tmp", path);
+    FILE *w = fopen(tmp_path, "w");
+    if (!w) return -1;
+    for (int i = 0; i < count; i++) {
+        const Host *h = &hosts[i];
+        if (h->jump[0]) {
+            if (h->markers[0]) fprintf(w, "%s %s %s #%s\n", h->nick, h->host, h->jump, h->markers);
+            else               fprintf(w, "%s %s %s\n",      h->nick, h->host, h->jump);
+        } else {
+            if (h->markers[0]) fprintf(w, "%s %s #%s\n", h->nick, h->host, h->markers);
+            else               fprintf(w, "%s %s\n",     h->nick, h->host);
+        }
+    }
+    fclose(w);
+    if (rename(tmp_path, path) != 0) { unlink(tmp_path); return -1; }
+    return 0;
+}
+
+void shell_sq_escape(char *dst, size_t dstsz, const char *src) {
+    size_t i = 0;
+    for (const char *p = src; *p; p++) {
+        if (*p == '\'') {
+            if (i + 4 >= dstsz) break;
+            dst[i++] = '\'';
+            dst[i++] = '\\';
+            dst[i++] = '\'';
+            dst[i++] = '\'';
+        } else {
+            if (i + 1 >= dstsz) break;
+            dst[i++] = *p;
+        }
+    }
+    dst[i < dstsz ? i : dstsz - 1] = '\0';
+}
+
+int kill_session(const char *host, const char *jump, const char *session) {
+    if (!session || !*session) return -1;
+
+    char esc[256];
+    shell_sq_escape(esc, sizeof(esc), session);
+    char remote_cmd[512];
+    snprintf(remote_cmd, sizeof(remote_cmd),
+             REMOTE_PATH_PREFIX "tmux kill-session -t '%s'", esc);
+
+    pid_t pid = fork();
+    if (pid < 0) return -1;
+    if (pid == 0) {
+        int devnull = open("/dev/null", O_RDWR);
+        if (devnull >= 0) {
+            dup2(devnull, STDIN_FILENO);
+            dup2(devnull, STDOUT_FILENO);
+            dup2(devnull, STDERR_FILENO);
+            close(devnull);
+        }
+        const char *args[16];
+        int a = 0;
+        args[a++] = "ssh";
+        args[a++] = "-o"; args[a++] = "BatchMode=yes";
+        args[a++] = "-o"; args[a++] = "ConnectTimeout=5";
+        if (jump && *jump) { args[a++] = "-J"; args[a++] = jump; }
+        args[a++] = host;
+        args[a++] = remote_cmd;
+        args[a++] = NULL;
+        execvp("ssh", (char *const *)args);
+        _exit(127);
+    }
+
+    int status;
+    waitpid(pid, &status, 0);
+    return (WIFEXITED(status) && WEXITSTATUS(status) == 0) ? 0 : -1;
+}
+
 int probe_host(const char *host, const char *jump, char *out, size_t outsize) {
     if (outsize == 0) return -1;
     out[0] = '\0';
