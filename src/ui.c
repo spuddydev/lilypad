@@ -122,7 +122,7 @@ int ui_prompt(const char *label, char *out, size_t size, const char *default_val
         int key = getch();
         if (key == 27) { curs_set(0); return -1; }
         if (key == '\n' || key == KEY_ENTER) {
-            if (pos > 0) { curs_set(0); return 0; }
+            curs_set(0); return 0;
         } else if (key == KEY_BACKSPACE || key == 127 || key == 8) {
             if (pos > 0) { pos--; out[pos] = '\0'; }
         } else if (key >= 32 && key < 127 && pos + 1 < size) {
@@ -349,7 +349,8 @@ HostPick run_host_menu(Host *hosts, int *count, const char *hosts_path) {
 
 static void draw_submenu(const char *title, const char * const *items, int n,
                          int selected, int top, int visible,
-                         const char *warning, const char *hint) {
+                         const char *warning,
+                         const char *hint1, const char *hint2) {
     int h, w;
     getmaxyx(stdscr, h, w);
     erase();
@@ -375,14 +376,20 @@ static void draw_submenu(const char *title, const char * const *items, int n,
         }
     }
 
+    int warn_row = (hint2 && hint2[0]) ? h - 4 : h - 3;
     if (warning && warning[0]) {
         attron(COLOR_PAIR(2));
-        mvaddstr(h - 3, (w - display_width(warning)) / 2, warning);
+        mvaddstr(warn_row, (w - display_width(warning)) / 2, warning);
         attroff(COLOR_PAIR(2));
     }
 
     attron(A_DIM);
-    mvaddstr(h - 2, (w - display_width(hint)) / 2, hint);
+    if (hint2 && hint2[0]) {
+        mvaddstr(h - 3, (w - display_width(hint1)) / 2, hint1);
+        mvaddstr(h - 2, (w - display_width(hint2)) / 2, hint2);
+    } else {
+        mvaddstr(h - 2, (w - display_width(hint1)) / 2, hint1);
+    }
     attroff(A_DIM);
 
     refresh();
@@ -402,7 +409,7 @@ static int submenu_loop(const char *title, const char * const *items, int n,
         if (selected >= n) selected = n - 1;
         top = clamp_top(top, selected, visible);
 
-        draw_submenu(title, items, n, selected, top, visible, warning, hint);
+        draw_submenu(title, items, n, selected, top, visible, warning, hint, NULL);
         int key = getch();
 
         if ((key == KEY_UP || key == 'k') && selected > 0)
@@ -428,9 +435,10 @@ SubChoice run_tmux_menu(const char *host_label, const char *host, const char *ju
     const char *warn = has_tmuxp ? NULL : "tmuxp not on host: templates won't load";
     const char *term = getenv("TERM_PROGRAM");
     int is_iterm_local = term && strcmp(term, "iTerm.app") == 0;
-    const char *hint = is_iterm_local
-        ? "[j/k] move  [enter] select  [t] plain (no -CC)  [D] kill  [q] back"
-        : "[j/k] move  [enter] select  [D] kill  [q] back";
+    const char *hint1 = "[j/k] move  [R] rename  [D] kill";
+    const char *hint2 = is_iterm_local
+        ? "[enter] select  [t] plain (no -CC)  [q] back"
+        : "[enter] select  [q] back";
 
     int selected = 0, top = 0;
     while (1) {
@@ -447,13 +455,13 @@ SubChoice run_tmux_menu(const char *host_label, const char *host, const char *ju
         int h, w;
         getmaxyx(stdscr, h, w);
         (void)w;
-        int visible = h - 6 - (warn && warn[0] ? 1 : 0);
+        int visible = h - 7 - (warn && warn[0] ? 1 : 0);
         if (visible < 1) visible = 1;
         if (selected < 0) selected = 0;
         if (selected >= item_count) selected = item_count - 1;
         top = clamp_top(top, selected, visible);
 
-        draw_submenu(title, items, item_count, selected, top, visible, warn, hint);
+        draw_submenu(title, items, item_count, selected, top, visible, warn, hint1, hint2);
         int key = getch();
 
         if ((key == KEY_UP || key == 'k') && selected > 0) {
@@ -472,6 +480,29 @@ SubChoice run_tmux_menu(const char *host_label, const char *host, const char *ju
                 (*n)--;
                 if (selected >= 2 + *n) selected = 2 + *n - 1;
                 if (selected < 0) selected = 0;
+            }
+        } else if (key == 'R' && selected >= 2) {
+            int sidx = selected - 2;
+            char newname[128];
+            if (ui_prompt("Rename session:", newname, sizeof(newname), sessions[sidx]) == 0
+                && newname[0] && strcmp(newname, sessions[sidx]) != 0) {
+                int collision = 0;
+                for (int i = 0; i < *n; i++) {
+                    if (i == sidx) continue;
+                    if (strcmp(sessions[i], newname) == 0) { collision = 1; break; }
+                }
+                if (collision) {
+                    ui_status("Name already in use; press any key");
+                    getch();
+                } else {
+                    ui_status("Renaming session...");
+                    if (rename_session(host, jump, sessions[sidx], newname) == 0) {
+                        size_t nl = strlen(newname);
+                        if (nl >= sizeof(sessions[sidx])) nl = sizeof(sessions[sidx]) - 1;
+                        memcpy(sessions[sidx], newname, nl);
+                        sessions[sidx][nl] = '\0';
+                    }
+                }
             }
         } else if (key == '\n' || key == KEY_ENTER || key == 't') {
             int force_plain = (key == 't');

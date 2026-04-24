@@ -15,6 +15,10 @@ int save_hosts(const char *path, const Host *hosts, int count);
 /* Kill a remote tmux session. Returns 0 on success, -1 on failure. */
 int kill_session(const char *host, const char *jump, const char *session);
 
+/* Rename a remote tmux session. Returns 0 on success, -1 on failure. */
+int rename_session(const char *host, const char *jump,
+                   const char *old_name, const char *new_name);
+
 /* Escape single quotes for safe embedding inside a single-quoted shell
  * string: ' becomes '\''. Truncates safely if dst is too small. */
 void shell_sq_escape(char *dst, size_t dstsz, const char *src);

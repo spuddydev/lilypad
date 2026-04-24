@@ -249,6 +249,46 @@ int kill_session(const char *host, const char *jump, const char *session) {
     return (WIFEXITED(status) && WEXITSTATUS(status) == 0) ? 0 : -1;
 }
 
+int rename_session(const char *host, const char *jump,
+                   const char *old_name, const char *new_name) {
+    if (!old_name || !*old_name || !new_name || !*new_name) return -1;
+
+    char esc_old[256], esc_new[256];
+    shell_sq_escape(esc_old, sizeof(esc_old), old_name);
+    shell_sq_escape(esc_new, sizeof(esc_new), new_name);
+    char remote_cmd[512];
+    snprintf(remote_cmd, sizeof(remote_cmd),
+             REMOTE_PATH_PREFIX "tmux rename-session -t '%s' '%s'",
+             esc_old, esc_new);
+
+    pid_t pid = fork();
+    if (pid < 0) return -1;
+    if (pid == 0) {
+        int devnull = open("/dev/null", O_RDWR);
+        if (devnull >= 0) {
+            dup2(devnull, STDIN_FILENO);
+            dup2(devnull, STDOUT_FILENO);
+            dup2(devnull, STDERR_FILENO);
+            close(devnull);
+        }
+        const char *args[16];
+        int a = 0;
+        args[a++] = "ssh";
+        args[a++] = "-o"; args[a++] = "BatchMode=yes";
+        args[a++] = "-o"; args[a++] = "ConnectTimeout=5";
+        if (jump && *jump) { args[a++] = "-J"; args[a++] = jump; }
+        args[a++] = host;
+        args[a++] = remote_cmd;
+        args[a++] = NULL;
+        execvp("ssh", (char *const *)args);
+        _exit(127);
+    }
+
+    int status;
+    waitpid(pid, &status, 0);
+    return (WIFEXITED(status) && WEXITSTATUS(status) == 0) ? 0 : -1;
+}
+
 int probe_host(const char *host, const char *jump, char *out, size_t outsize) {
     if (outsize == 0) return -1;
     out[0] = '\0';

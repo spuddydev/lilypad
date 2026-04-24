@@ -86,6 +86,25 @@ static int cmd_add(int argc, char *argv[]) {
     return 0;
 }
 
+static void auto_session_name(char sessions[][128], int ns, char *out, size_t outsize) {
+    for (int suffix = 0; suffix < 1000; suffix++) {
+        char candidate[128];
+        if (suffix == 0) snprintf(candidate, sizeof(candidate), "untitled");
+        else             snprintf(candidate, sizeof(candidate), "untitled-%d", suffix);
+        int taken = 0;
+        for (int i = 0; i < ns; i++)
+            if (strcmp(sessions[i], candidate) == 0) { taken = 1; break; }
+        if (!taken) {
+            size_t n = strlen(candidate);
+            if (n >= outsize) n = outsize - 1;
+            memcpy(out, candidate, n);
+            out[n] = '\0';
+            return;
+        }
+    }
+    snprintf(out, outsize, "untitled");
+}
+
 static int is_iterm(void) {
     const char *tp = getenv("TERM_PROGRAM");
     return tp && strcmp(tp, "iTerm.app") == 0;
@@ -257,8 +276,12 @@ static int cmd_menu(void) {
             }
 
             if (tp.kind == TPL_DEFAULT) {
-                if (ui_prompt("New tmux session name:", new_session, sizeof(new_session), "main") != 0)
+                new_session[0] = '\0';
+                if (ui_prompt("New session name (blank for auto):",
+                              new_session, sizeof(new_session), NULL) != 0)
                     continue;
+                if (new_session[0] == '\0')
+                    auto_session_name(sessions, ns, new_session, sizeof(new_session));
             }
             break;
         }
