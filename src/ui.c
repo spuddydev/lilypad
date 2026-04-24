@@ -187,11 +187,16 @@ static void draw_menu(const Host *hosts, const int *filtered, int fcount,
         mvaddstr(h - 3, (w - display_width(sline)) / 2, sline);
     }
 
-    const char *hint = in_search
-        ? "type to filter  [enter] select  [esc] cancel"
-        : "[j/k] move  [J/K] reorder  [D] delete  [enter] open  [s] ssh  [t] tmux  [/] search  [r] refresh  [q] quit";
     attron(A_DIM);
-    mvaddstr(h - 2, (w - display_width(hint)) / 2, hint);
+    if (in_search) {
+        const char *hint = "type to filter  [enter] select  [esc] cancel";
+        mvaddstr(h - 2, (w - display_width(hint)) / 2, hint);
+    } else {
+        const char *hint1 = "[j/k] move  [J/K] reorder  [D] delete";
+        const char *hint2 = "[enter] open  [s] ssh  [t] tmux  [/] search  [r] refresh  [q] quit";
+        mvaddstr(h - 3, (w - display_width(hint1)) / 2, hint1);
+        mvaddstr(h - 2, (w - display_width(hint2)) / 2, hint2);
+    }
     attroff(A_DIM);
 
     refresh();
@@ -238,7 +243,7 @@ HostPick run_host_menu(Host *hosts, int *count, const char *hosts_path) {
         int h, w;
         getmaxyx(stdscr, h, w);
         (void)w;
-        int visible = h - 7 - ((in_search || query[0]) ? 1 : 0);
+        int visible = h - 8;
         if (visible < 1) visible = 1;
         if (selected >= fcount) selected = fcount > 0 ? fcount - 1 : 0;
         top = clamp_top(top, selected, visible);
