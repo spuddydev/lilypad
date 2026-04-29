@@ -14,7 +14,21 @@ jump nick session                 # attach or create a tmux session by name
 
 ## Install
 
-A one-line installer ships in a follow-up PR. For now, build from source:
+One-liner:
+
+```
+curl -fsSL https://raw.githubusercontent.com/spuddydev/lilypad/main/install.sh | bash
+```
+
+Two-step (inspect first):
+
+```
+curl -fsSL https://raw.githubusercontent.com/spuddydev/lilypad/main/install.sh -o install.sh
+less install.sh
+bash install.sh
+```
+
+From source:
 
 ```
 make
