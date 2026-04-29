@@ -1,5 +1,5 @@
-#ifndef SSH_MENU_HOSTS_H
-#define SSH_MENU_HOSTS_H
+#ifndef LILYPAD_HOSTS_H
+#define LILYPAD_HOSTS_H
 
 #include <stddef.h>
 #include "common.h"

@@ -196,7 +196,7 @@ static int exec_template(const Host *h, const char *template_name, int force_pla
     int have_session = parse_session_name(src, session, sizeof(session)) == 0;
 
     char remote_path[MAX_PATH];
-    snprintf(remote_path, sizeof(remote_path), "/tmp/ssh-menu-%s.yaml", template_name);
+    snprintf(remote_path, sizeof(remote_path), "/tmp/lilypad-%s.yaml", template_name);
     if (scp_template(h, src, remote_path) != 0) {
         fprintf(stderr, "scp failed\n");
         return 1;
