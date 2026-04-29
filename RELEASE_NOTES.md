@@ -1,11 +1,16 @@
-# v1.1.2
+# v1.1.3
 
-Two field-reported fixes.
+Self-management subcommands and a polished docs site.
+
+## New
+
+- **`jump update [--check]`** fetches the latest tag via `git ls-remote`, compares it to the compiled-in version, and runs the install script when newer. `--check` only prints the comparison.
+- **`jump uninstall`** removes the binary, both bash and zsh completion files in standard system and user paths, and (with a y/N confirm) the config directory. Detects its own binary path through `/proc/self/exe` on Linux and `_NSGetExecutablePath` on macOS.
+- **CLI smoke tests.** A `tests/cli.sh` harness runs alongside the unit tests on every PR. Catches the kind of regressions that have been hitting in the field: missing flags, config set accepting bogus keys, suggestion behaviour.
 
 ## Changes
 
-- **`jump --help`, `-h`, and `--version` now work.** They previously errored with "Unknown option". Version is read from a single constant in the source, bumped per release.
-- **Zsh completion no longer errors on tab.** Every press after `jump` was throwing three "unrecognized modifier C" warnings, caused by an unused line that used bash-style array slicing in the zsh script.
+- **Doxygen site polish.** Real curated landing page with a layout overview and pointers to where to start reading, lilypad green colour theme with dark-mode equivalents, eight `@defgroup` sections so the public API is grouped in the sidebar and Topics page, source browser with caller and callee cross-links, plus heading anchors, an interactive table of contents, and tabs.
 
 ## Install
 
@@ -14,6 +19,12 @@ curl -fsSL https://raw.githubusercontent.com/spuddydev/lilypad/main/install.sh |
 ```
 
 ## Upgrading
+
+```
+jump update
+```
+
+Or if you cloned the repo:
 
 ```
 cd path/to/lilypad
