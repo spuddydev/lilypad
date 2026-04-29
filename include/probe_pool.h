@@ -3,14 +3,17 @@
 
 #include "common.h"
 
+/** Hard upper bound on concurrent probe children. */
 #define POOL_MAX_PARALLEL 16
+/** Cap on session names returned per probe. */
 #define POOL_MAX_SESSIONS 16
 
+/** Result of one completed probe. */
 typedef struct {
-    char nick[MAX_LINE];
-    char markers[8];
-    char sessions[POOL_MAX_SESSIONS][128];
-    int session_count;
+    char nick[MAX_LINE];                          /**< Host nickname (key). */
+    char markers[8];                              /**< Markers ("", "t", "p", "tp", "?"). */
+    char sessions[POOL_MAX_SESSIONS][128];        /**< Live tmux session names. */
+    int session_count;                            /**< Valid entries in `sessions`. */
 } ProbeResult;
 
 /** Initialise the pool with a parallelism cap. Pulled from

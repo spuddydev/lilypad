@@ -4,13 +4,23 @@
 #include <stddef.h>
 #include "common.h"
 
+/** Resolve the hosts file path under `$XDG_CONFIG_HOME/lilypad` or `~/.config/lilypad`. */
 void get_hosts_path(char *out, size_t size);
+
+/** Move a legacy `~/.config/ssh-menu` directory in place on first run.
+ *  No-op if the new dir already exists or the legacy dir is absent. */
 void migrate_legacy_config(void);
 
 /** True when `nick` clashes with a CLI subcommand or starts with '-'. */
 int is_reserved_nick(const char *nick);
+
+/** Parse the hosts file into the `hosts` array. Returns the count, or -1 on error. */
 int load_hosts(const char *path, Host *hosts, int max);
+
+/** Append a host. Validates nickname uniqueness and `user@addr` shape. */
 int add_host(const char *path, const char *nick, const char *host, const char *jump);
+
+/** Persist updated markers for a single nick (writes to state file). */
 int update_markers(const char *path, const char *nick, const char *markers);
 
 /** Rewrite the hosts file from the in-memory array in its current order. */
@@ -38,9 +48,16 @@ int probe_host(const char *host, const char *jump, char *out, size_t outsize);
  *  none, or -1 on ssh error. */
 int fetch_sessions(const char *host, const char *jump, char sessions[][128], int max);
 
+/** Resolve the tmuxp template directory under the lilypad config dir. */
 void get_templates_dir(char *out, size_t size);
+
+/** List template basenames (sans `.yaml` suffix). Returns the count. */
 int  list_templates(char names[][128], int max);
+
+/** Seed the templates dir with the bundled default template. Idempotent. */
 int  install_default_templates(void);
+
+/** Copy a template file from `src` into the templates dir. */
 int  install_template_from_path(const char *src);
 
 #endif
