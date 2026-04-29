@@ -1,11 +1,11 @@
-# v1.1.1
+# v1.1.2
 
-Small ergonomic fixes.
+Two field-reported fixes.
 
 ## Changes
 
-- **Setup script updates an existing install.** When run from a repo checkout, if a jump binary is already on PATH, setup now rebuilds and reinstalls into the same location. If the install directory is not writable, prints the exact sudo command to finish.
-- **Doxygen landing page is no longer empty.** The generated index now uses README.md as the main page, so the GitHub Pages site at https://spuddydev.github.io/lilypad/ actually shows content.
+- **`jump --help`, `-h`, and `--version` now work.** They previously errored with "Unknown option". Version is read from a single constant in the source, bumped per release.
+- **Zsh completion no longer errors on tab.** Every press after `jump` was throwing three "unrecognized modifier C" warnings, caused by an unused line that used bash-style array slicing in the zsh script.
 
 ## Install
 
