@@ -1,4 +1,6 @@
 #include "hosts.h"
+#include "config.h"
+#include "integration.h"
 
 #include <dirent.h>
 #include <errno.h>
@@ -350,9 +352,33 @@ int rename_session(const char *host, const char *jump,
     return (WIFEXITED(status) && WEXITSTATUS(status) == 0) ? 0 : -1;
 }
 
+/* Build the combined remote shell snippet from enabled remote integrations.
+   Each fragment contributes `<test> && echo I_<letter>;`. A trailing `true`
+   ensures exit 0 even when nothing matches. */
+static void build_probe_cmd(char *out, size_t size) {
+    out[0] = '\0';
+    size_t pos = 0;
+    pos += (size_t)snprintf(out + pos, size - pos, "%s", REMOTE_PATH_PREFIX);
+    for (int i = 0; ; i++) {
+        const Integration *it = integration_at(i);
+        if (!it) break;
+        if (it->kind != KIND_REMOTE || !it->enabled || !it->probe_remote_cmd) continue;
+        pos += (size_t)snprintf(out + pos, size - pos, "%s; ", it->probe_remote_cmd);
+        if (pos >= size) return;
+    }
+    snprintf(out + pos, size - pos, "true");
+}
+
 int probe_host(const char *host, const char *jump, char *out, size_t outsize) {
     if (outsize == 0) return -1;
     out[0] = '\0';
+
+    char remote_cmd[1024];
+    build_probe_cmd(remote_cmd, sizeof(remote_cmd));
+
+    char timeout_str[16];
+    snprintf(timeout_str, sizeof(timeout_str),
+             "ConnectTimeout=%d", config_get_int("probe.timeout", 5));
 
     int pipefd[2];
     if (pipe(pipefd) != 0) return -1;
@@ -373,21 +399,18 @@ int probe_host(const char *host, const char *jump, char *out, size_t outsize) {
         int a = 0;
         args[a++] = "ssh";
         args[a++] = "-o"; args[a++] = "BatchMode=yes";
-        args[a++] = "-o"; args[a++] = "ConnectTimeout=5";
+        args[a++] = "-o"; args[a++] = timeout_str;
         args[a++] = "-o"; args[a++] = "StrictHostKeyChecking=accept-new";
         if (jump && *jump) { args[a++] = "-J"; args[a++] = jump; }
         args[a++] = host;
-        args[a++] =
-            REMOTE_PATH_PREFIX
-            "command -v tmux >/dev/null && echo T; "
-            "command -v tmuxp >/dev/null && echo P; true";
+        args[a++] = remote_cmd;
         args[a++] = NULL;
         execvp("ssh", (char *const *)args);
         _exit(127);
     }
 
     close(pipefd[1]);
-    char buf[256];
+    char buf[512];
     ssize_t total = 0, n;
     while (total < (ssize_t)sizeof(buf) - 1 &&
            (n = read(pipefd[0], buf + total, sizeof(buf) - 1 - total)) > 0)
@@ -405,8 +428,15 @@ int probe_host(const char *host, const char *jump, char *out, size_t outsize) {
     }
 
     size_t pos = 0;
-    if (!strchr(buf, 'T') && pos + 1 < outsize) out[pos++] = 't';
-    if (!strchr(buf, 'P') && pos + 1 < outsize) out[pos++] = 'p';
+    for (int i = 0; ; i++) {
+        const Integration *it = integration_at(i);
+        if (!it) break;
+        if (it->kind != KIND_REMOTE || !it->enabled || !it->marker_letter) continue;
+        char token[8];
+        snprintf(token, sizeof(token), "I_%c", it->marker_letter);
+        if (!strstr(buf, token) && pos + 1 < outsize)
+            out[pos++] = it->marker_letter;
+    }
     out[pos] = '\0';
     return 0;
 }
