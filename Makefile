@@ -11,7 +11,7 @@ endif
 SRCS = $(wildcard src/*.c)
 OBJS = $(SRCS:src/%.c=build/%.o)
 DEPS = $(OBJS:.o=.d)
-BIN  = menu
+BIN  = jump
 
 $(BIN): $(OBJS)
 	$(CC) $(OBJS) -o $@ $(LDLIBS)

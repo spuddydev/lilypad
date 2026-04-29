@@ -141,7 +141,7 @@ static void draw_menu(const Host *hosts, const int *filtered, int fcount,
     getmaxyx(stdscr, h, w);
     erase();
 
-    const char *title = "SSH Menu";
+    const char *title = "Lilypad";
     int tw = display_width(title);
     int tx = (w - tw) / 2;
     mvaddstr(1, tx, title);
@@ -229,7 +229,7 @@ HostPick run_host_menu(Host *hosts, int *count, const char *hosts_path) {
     HostPick result = {-1, INTENT_CANCEL};
 
     if (*count == 0) {
-        mvaddstr(0, 0, "No hosts found. Use: menu --add name@address nickname");
+        mvaddstr(0, 0, "No hosts found. Use: jump --add name@address nickname");
         getch();
         return result;
     }

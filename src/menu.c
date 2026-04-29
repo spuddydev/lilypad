@@ -196,7 +196,7 @@ static int exec_template(const Host *h, const char *template_name, int force_pla
     int have_session = parse_session_name(src, session, sizeof(session)) == 0;
 
     char remote_path[MAX_PATH];
-    snprintf(remote_path, sizeof(remote_path), "/tmp/ssh-menu-%s.yaml", template_name);
+    snprintf(remote_path, sizeof(remote_path), "/tmp/lilypad-%s.yaml", template_name);
     if (scp_template(h, src, remote_path) != 0) {
         fprintf(stderr, "scp failed\n");
         return 1;
@@ -321,6 +321,7 @@ static int cmd_menu(void) {
 }
 
 int main(int argc, char *argv[]) {
+    migrate_legacy_config();
     install_default_templates();
     if (argc > 1 && strcmp(argv[1], "--add") == 0)
         return cmd_add(argc, argv);

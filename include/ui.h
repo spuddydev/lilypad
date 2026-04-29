@@ -1,5 +1,5 @@
-#ifndef SSH_MENU_UI_H
-#define SSH_MENU_UI_H
+#ifndef LILYPAD_UI_H
+#define LILYPAD_UI_H
 
 #include <stddef.h>
 #include "common.h"
