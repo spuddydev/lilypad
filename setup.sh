@@ -31,3 +31,14 @@ EOF
 echo "wrote $CONFIG_FILE"
 echo "  integration.iterm = $iterm"
 echo "  integration.tmuxp = $tmuxp"
+
+# Install shell completions if we're running from a repo checkout.
+script_dir="$(cd "$(dirname "$0")" && pwd)"
+if [ -f "$script_dir/Makefile" ] && [ -f "$script_dir/completions/jump.bash" ]; then
+    echo
+    echo "installing shell completions..."
+    make -C "$script_dir" install-completions
+else
+    echo
+    echo "note: run 'make install-completions' from the repo to enable tab completion."
+fi
