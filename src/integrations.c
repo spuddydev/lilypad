@@ -19,14 +19,29 @@ static int detect_tmuxp_local(void) {
 
 static int tmuxp_offer_install(const Host *h) {
     static const char *const remote_cmd =
+        REMOTE_PATH_PREFIX
         "if command -v pipx >/dev/null 2>&1; then "
         "  pipx install tmuxp; "
         "elif command -v pip3 >/dev/null 2>&1; then "
-        "  pip3 install --user tmuxp; "
+        "  pip3 install --user tmuxp || "
+        "    pip3 install --user --break-system-packages tmuxp; "
         "elif command -v pip >/dev/null 2>&1; then "
-        "  pip install --user tmuxp; "
+        "  pip install --user tmuxp || "
+        "    pip install --user --break-system-packages tmuxp; "
         "else "
-        "  echo 'no pipx/pip3/pip found on remote' >&2; exit 1; "
+        "  echo 'lilypad: no pipx, pip3, or pip on the remote.' >&2; "
+        "  if   command -v apt-get >/dev/null 2>&1; then "
+        "    echo '  install pipx with: sudo apt install pipx' >&2; "
+        "  elif command -v dnf     >/dev/null 2>&1; then "
+        "    echo '  install pipx with: sudo dnf install pipx' >&2; "
+        "  elif command -v apk     >/dev/null 2>&1; then "
+        "    echo '  install pipx with: sudo apk add pipx' >&2; "
+        "  elif command -v pacman  >/dev/null 2>&1; then "
+        "    echo '  install pipx with: sudo pacman -S python-pipx' >&2; "
+        "  elif command -v brew    >/dev/null 2>&1; then "
+        "    echo '  install pipx with: brew install pipx' >&2; "
+        "  fi; "
+        "  exit 1; "
         "fi";
     pid_t pid = fork();
     if (pid < 0) return -1;
