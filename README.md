@@ -1,6 +1,8 @@
-# ssh-menu
+# lilypad
 
-Tiny ncurses menu for quickly SSH-ing into saved hosts. Runs on macOS and Linux — state lives in `~/.config/ssh-menu/` (or `$XDG_CONFIG_HOME/ssh-menu/`).
+Tiny ncurses menu and CLI for quickly ssh-ing into saved hosts. Runs on macOS and Linux. State lives in `~/.config/lilypad/` (or `$XDG_CONFIG_HOME/lilypad/`).
+
+The full release-quality README lands in a later PR. This is the working summary.
 
 ## Build
 
@@ -12,53 +14,54 @@ Requires a C compiler and ncurses. macOS ships this out of the box; on Debian/Ub
 
 ## Usage
 
-### Add a host
+### Open the menu
 
 ```
-./menu --add user@address nickname [jump_hosts]
+./jump
 ```
 
-- `nickname` must not contain whitespace and must be unique.
-- `jump_hosts` is optional and passed to `ssh -J`. Use commas for multiple hops (e.g. `u1@a,u2@b`).
+- `↑`/`↓` or `j`/`k` to move; digits `1`–`9` jump to that row
+- `Enter` opens (uses the tmux submenu when the host has tmux)
+- `s` opens a plain ssh shell
+- `t` opens a default tmux session named `main`
+- `A` adds a host inline (three prompts: nickname, user@addr, optional jump)
+- `D` deletes the highlighted host; `J`/`K` reorder
+- `/` to filter; `r` reprobes the highlighted host; `R` reprobes all visible
+- `q` to quit
+
+Red markers next to a host flag what is **missing**: `t` = no tmux, `p` = no tmuxp, `?` = probe failed.
+
+### Direct CLI
+
+```
+jump <nick>                  # open the host page for <nick>
+jump <nick> <session> [--plain]  # attach or create the named tmux session
+jump -s <nick>               # plain ssh, no tmux
+jump add user@addr nick [jump_hosts]
+jump config [get|set|unset|undecline] ...
+```
+
+Tab completion ships in `completions/`. Install via `make install-completions`.
 
 ### Add a tmuxp template
 
 ```
-./menu --template-add path/to/file.yaml
+./jump --template-add path/to/file.yaml
 ```
 
-Copies the YAML into `~/.config/ssh-menu/tmuxp/`. The template picker lists anything in that directory.
+Copies the YAML into `~/.config/lilypad/tmuxp/`. The template picker lists anything in that directory.
 
-### Open the menu
+## Files
 
-```
-./menu
-```
+- `~/.config/lilypad/hosts` — list of `nickname user@addr [jump_hosts]`
+- `~/.config/lilypad/state` — markers, last-probe timestamp, cached sessions, declined integrations (program-managed)
+- `~/.config/lilypad/config` — user preferences (`integration.iterm`, `integration.tmuxp`, `probe.timeout`, `probe.cache_seconds`, `probe.max_parallel`)
 
-- `↑`/`↓` or `j`/`k` to move; digits `1`–`9` jump to that row
-- `Enter` opens (uses tmux submenu when the host has tmux)
-- `s` opens a plain ssh shell (skips submenu)
-- `t` opens a default tmux session named `main` (creates if missing)
-- `/` to filter by nickname/address — Esc clears, Enter picks
-- `r` to re-probe the highlighted host (refreshes markers)
-- `q` to quit
-
-Red markers next to a host flag what is **missing**: `t` = no tmux, `p` = no tmuxp, `?` = probe failed. No markers means the host is fully set up. Probing happens automatically on `--add` and on demand with `r`.
-
-Hosts with tmux installed get a second screen on `Enter`: pick `Plain shell`, `New tmux session`, or attach to one of the existing `tmux ls` sessions. Selecting `New tmux session` opens a third screen with tmuxp templates (from `~/.config/ssh-menu/tmuxp/`); picking `default` skips templates and just runs `tmux new`. iTerm2 sessions use `tmux -CC` automatically for non-template paths; other terminals get plain tmux.
-
-## Hosts file
-
-Stored at `~/.config/ssh-menu/hosts` (or `$XDG_CONFIG_HOME/ssh-menu/hosts`). One record per line:
-
-```
-nickname user@address [jump_hosts] [#markers]
-```
-
-Whitespace-delimited. Lines with fewer than two fields are skipped. The `#markers` column is written by the probe and shouldn't usually be hand-edited.
+`setup.sh` writes an initial config based on detected local prerequisites.
 
 ## Layout
 
-- `src/` — `menu.c` (entry + dispatch), `hosts.c` (storage + remote probe), `ui.c` (ncurses menu)
-- `include/` — `common.h` (types + limits), `hosts.h`, `ui.h`
+- `src/` — `menu.c` (entry), `cli.c` (subcommand dispatch), `exec.c` (ssh handoff), `hosts.c` (host storage), `state.c` (runtime state), `config.c`, `integrations.c`, `probe_pool.c` (live probes), `ui.c` (ncurses)
+- `include/` — public headers
+- `completions/` — bash and zsh completion scripts
 - `build/` — objects and auto-generated deps (gitignored)
