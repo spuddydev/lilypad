@@ -47,6 +47,9 @@ void state_begin_batch(void);
 /** Flush a write batch atomically. */
 int state_commit_batch(void);
 
+/** Abandon a write batch without flushing. */
+void state_abort_batch(void);
+
 /** True when a state file exists on disk. */
 int state_file_exists(void);
 
