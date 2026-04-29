@@ -282,6 +282,10 @@ int state_commit_batch(void) {
     return state_save();
 }
 
+void state_abort_batch(void) {
+    batching = 0;
+}
+
 void migrate_hosts_to_state(void) {
     if (state_file_exists()) return;
 

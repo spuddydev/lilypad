@@ -1,5 +1,8 @@
 #include "ui.h"
+#include "config.h"
 #include "hosts.h"
+#include "probe_pool.h"
+#include "state.h"
 
 #include <curses.h>
 #include <locale.h>
@@ -7,6 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <time.h>
 
 static int display_width(const char *s) {
     int n = 0;
@@ -225,25 +229,27 @@ static void draw_menu(const Host *hosts, const int *filtered, int fcount,
     refresh();
 }
 
-static void refresh_host(Host *h, const char *hosts_path) {
-    int hh, ww;
-    getmaxyx(stdscr, hh, ww);
-    const char *msg = "Probing...";
-    move(hh - 2, 0);
-    clrtoeol();
-    attron(A_DIM);
-    mvaddstr(hh - 2, (ww - display_width(msg)) / 2, msg);
-    attroff(A_DIM);
-    refresh();
+typedef struct {
+    Host *hosts;
+    int *count;
+} ProbeApplyCtx;
 
-    char new_markers[8];
-    if (probe_host(h->host, h->jump, new_markers, sizeof(new_markers)) != 0)
-        return;
-    if (hosts_path) update_markers(hosts_path, h->nick, new_markers);
-    size_t n = strlen(new_markers);
-    if (n >= sizeof(h->markers)) n = sizeof(h->markers) - 1;
-    memcpy(h->markers, new_markers, n);
-    h->markers[n] = '\0';
+static void on_probe_result(const ProbeResult *r, void *user) {
+    ProbeApplyCtx *ctx = (ProbeApplyCtx *)user;
+    state_set_markers(r->nick, r->markers);
+    if (r->session_count > 0) {
+        char tmp[POOL_MAX_SESSIONS][128];
+        for (int i = 0; i < r->session_count; i++)
+            snprintf(tmp[i], sizeof(tmp[i]), "%s", r->sessions[i]);
+        state_set_sessions(r->nick, tmp, r->session_count);
+    }
+    for (int i = 0; i < *ctx->count; i++) {
+        if (strcmp(ctx->hosts[i].nick, r->nick) == 0) {
+            snprintf(ctx->hosts[i].markers, sizeof(ctx->hosts[i].markers),
+                     "%s", r->markers);
+            break;
+        }
+    }
 }
 
 HostPick run_host_menu(Host *hosts, int *count, const char *hosts_path) {
@@ -262,6 +268,19 @@ HostPick run_host_menu(Host *hosts, int *count, const char *hosts_path) {
     int selected = 0;
     int top = 0;
 
+    probe_pool_init(config_get_int("probe.max_parallel", 8));
+    int cache_seconds = config_get_int("probe.cache_seconds", 60);
+    time_t now = time(NULL);
+    for (int i = 0; i < *count; i++) {
+        const HostState *st = state_get(hosts[i].nick);
+        if (!st || (now - st->last_probe) > cache_seconds)
+            probe_pool_enqueue(hosts[i].nick, hosts[i].host, hosts[i].jump);
+    }
+    probe_pool_pump();
+
+    ProbeApplyCtx probe_ctx = {hosts, count};
+    wtimeout(stdscr, 100);
+
     while (1) {
         int h, w;
         getmaxyx(stdscr, h, w);
@@ -273,6 +292,14 @@ HostPick run_host_menu(Host *hosts, int *count, const char *hosts_path) {
 
         draw_menu(hosts, filtered, fcount, selected, top, visible, query, in_search);
         int key = getch();
+        if (key == ERR) {
+            state_begin_batch();
+            int updates = probe_pool_drain_now(on_probe_result, &probe_ctx);
+            if (updates > 0) state_commit_batch();
+            else             state_abort_batch();
+            probe_pool_pump();
+            continue;
+        }
 
         if (in_search) {
             if (key == 27) {
@@ -285,7 +312,7 @@ HostPick run_host_menu(Host *hosts, int *count, const char *hosts_path) {
                 if (fcount > 0) {
                     result.host_index = filtered[selected];
                     result.intent = INTENT_TMUX_CHOOSE;
-                    return result;
+                    goto done;
                 }
             } else if (key == KEY_UP && selected > 0) {
                 selected--;
@@ -341,25 +368,34 @@ HostPick run_host_menu(Host *hosts, int *count, const char *hosts_path) {
                 if (fcount > 0) {
                     result.host_index = filtered[selected];
                     result.intent = INTENT_TMUX_CHOOSE;
-                    return result;
+                    goto done;
                 }
             } else if (key == 's') {
                 if (fcount > 0) {
                     result.host_index = filtered[selected];
                     result.intent = INTENT_SSH;
-                    return result;
+                    goto done;
                 }
             } else if (key == 't') {
                 if (fcount > 0) {
                     result.host_index = filtered[selected];
                     result.intent = INTENT_TMUX_DEFAULT;
-                    return result;
+                    goto done;
                 }
             } else if (key == '/') {
                 in_search = 1;
             } else if (key == 'r') {
-                if (fcount > 0)
-                    refresh_host(&hosts[filtered[selected]], hosts_path);
+                if (fcount > 0) {
+                    Host *target = &hosts[filtered[selected]];
+                    probe_pool_enqueue(target->nick, target->host, target->jump);
+                    probe_pool_pump();
+                }
+            } else if (key == 'R') {
+                for (int i = 0; i < fcount; i++) {
+                    Host *target = &hosts[filtered[i]];
+                    probe_pool_enqueue(target->nick, target->host, target->jump);
+                }
+                probe_pool_pump();
             } else if (key == 'A') {
                 if (*count >= MAX_HOSTS) {
                     ui_status("host list is full");
@@ -415,15 +451,24 @@ HostPick run_host_menu(Host *hosts, int *count, const char *hosts_path) {
                 for (int i = 0; i < fcount; i++)
                     if (filtered[i] == *count - 1) { selected = i; break; }
                 top = 0;
-                refresh_host(&hosts[*count - 1], hosts_path);
+                {
+                    Host *new_h = &hosts[*count - 1];
+                    probe_pool_enqueue(new_h->nick, new_h->host, new_h->jump);
+                    probe_pool_pump();
+                }
             } else if (key == 'q') {
-                return result;
+                goto done;
             } else if (key >= '1' && key <= '9') {
                 int idx = key - '1';
                 if (idx < fcount) selected = idx;
             }
         }
     }
+
+done:
+    wtimeout(stdscr, -1);
+    probe_pool_shutdown();
+    return result;
 }
 
 static void draw_submenu(const char *title, const char * const *items, int n,
