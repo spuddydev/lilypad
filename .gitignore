@@ -1,5 +1,6 @@
 /build/
 *.o
 /menu
+/jump
 /hosts
 .DS_Store
