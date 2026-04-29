@@ -3,6 +3,7 @@
 #include "exec.h"
 #include "hosts.h"
 #include "integration.h"
+#include "state.h"
 #include "ui.h"
 
 #include <stdio.h>
@@ -72,7 +73,12 @@ int cmd_menu(void) {
         if (!back_to_main) break;
     }
 
+    char to_install[8] = "";
+    if (intent == INTENT_TMUX_CHOOSE || intent == INTENT_TMUX_DEFAULT)
+        prompt_install_decisions(h, to_install, sizeof(to_install));
+
     ui_end();
+    apply_install_decisions(h, to_install);
 
     const char *prefix = (is_iterm() && !sc.force_plain) ? "tmux -CC" : "tmux";
     char remote_cmd[1024];
@@ -108,6 +114,8 @@ int main(int argc, char *argv[]) {
     migrate_legacy_config();
     config_load();
     integrations_init();
+    state_load();
+    migrate_hosts_to_state();
     install_default_templates();
     return cli_dispatch(argc, argv);
 }

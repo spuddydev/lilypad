@@ -3,7 +3,10 @@
 #include "exec.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
 static int detect_tmux_local(void) {
     /* Local presence is not a hard gate; remote check is what matters. */
@@ -12,6 +15,36 @@ static int detect_tmux_local(void) {
 
 static int detect_tmuxp_local(void) {
     return 1;
+}
+
+static int tmuxp_offer_install(const Host *h) {
+    static const char *const remote_cmd =
+        "if command -v pipx >/dev/null 2>&1; then "
+        "  pipx install tmuxp; "
+        "elif command -v pip3 >/dev/null 2>&1; then "
+        "  pip3 install --user tmuxp; "
+        "elif command -v pip >/dev/null 2>&1; then "
+        "  pip install --user tmuxp; "
+        "else "
+        "  echo 'no pipx/pip3/pip found on remote' >&2; exit 1; "
+        "fi";
+    pid_t pid = fork();
+    if (pid < 0) return -1;
+    if (pid == 0) {
+        const char *args[16];
+        int a = 0;
+        args[a++] = "ssh";
+        args[a++] = "-t";
+        if (h->jump[0]) { args[a++] = "-J"; args[a++] = (char *)h->jump; }
+        args[a++] = (char *)h->host;
+        args[a++] = (char *)remote_cmd;
+        args[a++] = NULL;
+        execvp("ssh", (char *const *)args);
+        _exit(127);
+    }
+    int status;
+    waitpid(pid, &status, 0);
+    return (WIFEXITED(status) && WEXITSTATUS(status) == 0) ? 0 : -1;
 }
 
 static Integration registry[] = {
@@ -39,7 +72,7 @@ static Integration registry[] = {
         .marker_letter = 'p',
         .detect_local = detect_tmuxp_local,
         .probe_remote_cmd = "command -v tmuxp >/dev/null && echo I_p",
-        .offer_install = NULL,
+        .offer_install = tmuxp_offer_install,
         .enabled = 1,
     },
 };

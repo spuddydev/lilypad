@@ -2,6 +2,8 @@
 #include "config.h"
 #include "exec.h"
 #include "hosts.h"
+#include "integration.h"
+#include "state.h"
 #include "ui.h"
 
 #include <stdio.h>
@@ -130,7 +132,18 @@ static int cmd_config(int argc, char *argv[]) {
         config_unset(argv[3]);
         return config_save();
     }
-    fprintf(stderr, "Usage: %s config [get|set|unset] ...\n", argv[0]);
+    if (strcmp(op, "undecline") == 0) {
+        if (argc != 5 || strlen(argv[4]) != 1) {
+            fprintf(stderr, "Usage: %s config undecline <nick> <letter>\n", argv[0]);
+            return 1;
+        }
+        if (state_remove_decline(argv[3], argv[4][0]) != 0) {
+            fprintf(stderr, "no decline for %s/%s\n", argv[3], argv[4]);
+            return 1;
+        }
+        return state_save();
+    }
+    fprintf(stderr, "Usage: %s config [get|set|unset|undecline] ...\n", argv[0]);
     return 1;
 }
 
@@ -264,7 +277,12 @@ static int cmd_direct_host(const char *nick) {
         break;
     }
 
+    char to_install[8] = "";
+    if (sc.kind != SUB_PLAIN)
+        prompt_install_decisions(h, to_install, sizeof(to_install));
+
     ui_end();
+    apply_install_decisions(h, to_install);
 
     const char *prefix = (is_iterm() && !sc.force_plain) ? "tmux -CC" : "tmux";
     char remote_cmd[1024];
@@ -284,6 +302,55 @@ static int cmd_direct_host(const char *nick) {
         return exec_ssh_tmux(h, remote_cmd);
     }
     return 0;
+}
+
+void prompt_install_decisions(const Host *h, char *out, size_t out_size) {
+    if (out_size > 0) out[0] = '\0';
+    if (h->markers[0] == '?') return;
+    HostState *st = state_get(h->nick);
+    size_t pos = 0;
+    for (int i = 0; ; i++) {
+        const Integration *it = integration_at(i);
+        if (!it) break;
+        if (it->kind != KIND_REMOTE) continue;
+        if (!it->enabled) continue;
+        if (!it->offer_install) continue;
+        if (!it->marker_letter) continue;
+        if (!strchr(h->markers, it->marker_letter)) continue;
+        if (st && strchr(st->declined, it->marker_letter)) continue;
+
+        char msg[256];
+        snprintf(msg, sizeof(msg), "Install %s on %s?", it->name, h->nick);
+        UiConfirm c = ui_confirm3(msg);
+        if (c == UI_CONFIRM_YES) {
+            if (pos + 1 < out_size) out[pos++] = it->marker_letter;
+        } else if (c == UI_CONFIRM_NEVER) {
+            state_add_decline(h->nick, it->marker_letter);
+        }
+    }
+    if (out_size > 0) out[pos < out_size ? pos : out_size - 1] = '\0';
+}
+
+void apply_install_decisions(const Host *h, const char *letters) {
+    if (!letters || !*letters) return;
+    for (const char *p = letters; *p; p++) {
+        const Integration *target = NULL;
+        for (int i = 0; ; i++) {
+            const Integration *it = integration_at(i);
+            if (!it) break;
+            if (it->marker_letter == *p) { target = it; break; }
+        }
+        if (!target || !target->offer_install) continue;
+        printf("lilypad: installing %s on %s...\n", target->name, h->nick);
+        if (target->offer_install(h) != 0) {
+            fprintf(stderr, "lilypad: %s install failed\n", target->name);
+            continue;
+        }
+    }
+    printf("lilypad: re-probing %s...\n", h->nick);
+    char markers[8] = "";
+    probe_host(h->host, h->jump, markers, sizeof(markers));
+    state_set_markers(h->nick, markers);
 }
 
 int cli_dispatch(int argc, char *argv[]) {
