@@ -5,16 +5,18 @@
 #include <time.h>
 #include "common.h"
 
+/** Cap on cached tmux session names per host. */
 #define STATE_MAX_SESSIONS 16
 
+/** Per-host runtime state persisted in the state file. */
 typedef struct {
-    char nick[MAX_LINE];
-    char markers[8];
-    time_t last_probe;
-    char declined[8];
-    char sessions[STATE_MAX_SESSIONS][128];
-    int session_count;
-    int set;
+    char nick[MAX_LINE];                       /**< Host nickname (key). */
+    char markers[8];                           /**< Last-probed marker string. */
+    time_t last_probe;                         /**< Unix time of the last probe. */
+    char declined[8];                          /**< Letters the user said "never" to. */
+    char sessions[STATE_MAX_SESSIONS][128];    /**< Cached session names. */
+    int session_count;                         /**< Valid entries in `sessions`. */
+    int set;                                   /**< Internal occupancy flag. */
 } HostState;
 
 /** Read the state file into in-process memory. Idempotent. */

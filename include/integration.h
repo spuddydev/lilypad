@@ -3,11 +3,13 @@
 
 #include "common.h"
 
+/** Whether an integration is checked locally or on the remote. */
 typedef enum {
-    KIND_LOCAL,
-    KIND_REMOTE,
+    KIND_LOCAL,    /**< Detected on the user's terminal (e.g. iTerm). */
+    KIND_REMOTE,   /**< Detected via the ssh probe (e.g. tmux). */
 } IntegrationKind;
 
+/** A registry entry describing one integration. */
 typedef struct {
     const char *name;
     IntegrationKind kind;
