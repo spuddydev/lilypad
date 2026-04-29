@@ -58,9 +58,22 @@ install-completions:
 	  echo "  add to ~/.zshrc:  fpath+=(\"$$zsh_dir\") && autoload -U compinit && compinit"; \
 	fi
 
+TEST_LIB_OBJS = build/state.o build/exec.o build/hosts.o \
+                build/config.o build/integrations.o
+TEST_BIN = build/run_tests
+
+$(TEST_BIN): build/test_main.o $(TEST_LIB_OBJS)
+	$(CC) build/test_main.o $(TEST_LIB_OBJS) -o $@
+
+build/test_main.o: tests/test_main.c | build
+	$(CC) $(CFLAGS) -c $< -o $@
+
+test: $(TEST_BIN)
+	./$(TEST_BIN)
+
 clean:
 	rm -rf build $(BIN)
 
 -include $(DEPS)
 
-.PHONY: clean install-completions docs
+.PHONY: clean install-completions docs test
