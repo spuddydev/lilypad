@@ -1,6 +1,7 @@
 #include "hosts.h"
 #include "config.h"
 #include "integration.h"
+#include "state.h"
 
 #include <dirent.h>
 #include <errno.h>
@@ -142,6 +143,10 @@ int load_hosts(const char *path, Host *hosts, int max) {
         copy_field(h->host, sizeof(h->host), host);
         copy_field(h->jump, sizeof(h->jump), jump);
         copy_field(h->markers, sizeof(h->markers), markers);
+        /* Overlay state markers on top of any legacy #markers token. */
+        const HostState *st = state_get(h->nick);
+        if (st && st->markers[0])
+            copy_field(h->markers, sizeof(h->markers), st->markers);
         count++;
     }
     fclose(f);
@@ -201,40 +206,8 @@ int add_host(const char *path, const char *nick, const char *host, const char *j
 }
 
 int update_markers(const char *path, const char *nick, const char *markers) {
-    FILE *f = fopen(path, "r");
-    if (!f) return -1;
-
-    char tmp_path[MAX_PATH];
-    snprintf(tmp_path, sizeof(tmp_path), "%s.tmp", path);
-    FILE *w = fopen(tmp_path, "w");
-    if (!w) { fclose(f); return -1; }
-
-    char line[MAX_LINE];
-    int found = 0;
-    while (fgets(line, sizeof(line), f)) {
-        char copy[MAX_LINE];
-        copy_field(copy, sizeof(copy), line);
-        copy[strcspn(copy, "\n")] = '\0';
-        char *n, *h, *j, *m;
-        if (parse_line(copy, &n, &h, &j, &m) && strcmp(n, nick) == 0) {
-            found = 1;
-            if (j && *j) {
-                if (markers && *markers) fprintf(w, "%s %s %s #%s\n", n, h, j, markers);
-                else                     fprintf(w, "%s %s %s\n", n, h, j);
-            } else {
-                if (markers && *markers) fprintf(w, "%s %s #%s\n", n, h, markers);
-                else                     fprintf(w, "%s %s\n", n, h);
-            }
-        } else {
-            fputs(line, w);
-        }
-    }
-    fclose(f);
-    fclose(w);
-
-    if (!found) { unlink(tmp_path); return -1; }
-    if (rename(tmp_path, path) != 0) { unlink(tmp_path); return -1; }
-    return 0;
+    (void)path;
+    return state_set_markers(nick, markers);
 }
 
 int save_hosts(const char *path, const Host *hosts, int count) {
@@ -245,13 +218,8 @@ int save_hosts(const char *path, const Host *hosts, int count) {
     if (!w) return -1;
     for (int i = 0; i < count; i++) {
         const Host *h = &hosts[i];
-        if (h->jump[0]) {
-            if (h->markers[0]) fprintf(w, "%s %s %s #%s\n", h->nick, h->host, h->jump, h->markers);
-            else               fprintf(w, "%s %s %s\n",      h->nick, h->host, h->jump);
-        } else {
-            if (h->markers[0]) fprintf(w, "%s %s #%s\n", h->nick, h->host, h->markers);
-            else               fprintf(w, "%s %s\n",     h->nick, h->host);
-        }
+        if (h->jump[0]) fprintf(w, "%s %s %s\n", h->nick, h->host, h->jump);
+        else            fprintf(w, "%s %s\n",    h->nick, h->host);
     }
     fclose(w);
     if (rename(tmp_path, path) != 0) { unlink(tmp_path); return -1; }

@@ -3,6 +3,7 @@
 #include "exec.h"
 #include "hosts.h"
 #include "integration.h"
+#include "state.h"
 #include "ui.h"
 
 #include <stdio.h>
@@ -108,6 +109,8 @@ int main(int argc, char *argv[]) {
     migrate_legacy_config();
     config_load();
     integrations_init();
+    state_load();
+    migrate_hosts_to_state();
     install_default_templates();
     return cli_dispatch(argc, argv);
 }
