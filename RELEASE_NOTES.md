@@ -1,18 +1,18 @@
-# v1.0.0
+# v1.1.0
 
-First tagged release of lilypad (formerly ssh-menu).
+Bug fixes and ergonomic improvements based on first-week feedback.
 
-## Highlights
+## Fixes
 
-- Renamed binary `jump` and config directory `~/.config/lilypad/`. Existing `~/.config/ssh-menu/` is migrated automatically on first run.
-- New CLI surface: `jump <nick>`, `jump <nick> <session> [--plain]`, `jump -s <nick>`, `jump add ...`, `jump config ...`. Bare `jump` still opens the menu.
-- Live threaded probing: the menu now probes all hosts in parallel on open, with a per-host cache and a clean shutdown on quit.
-- Config file at `~/.config/lilypad/config` with integration toggles and probe tuning. `setup.sh` seeds it from local detection.
-- Integration registry covering iterm, tmux, tmuxp. tmuxp's missing-on-remote prompt asks once and remembers.
-- Per-host runtime data moves to a separate `state` file with percent-encoded values, leaving the user-edited `hosts` file clean.
-- Inline shift-A flow to add a host without leaving the menu.
-- Tab completion for bash and zsh; install via `make install-completions` or the curl one-liner.
-- Doxygen API docs with the doxygen-awesome theme; build via `make docs`.
+- **Install prompt actually installs.** The remote tmuxp install command now runs with the same PATH prefix the probe uses, so pipx at `~/.local/bin` is found in non-interactive ssh shells. Falls back to `pip install --break-system-packages` on PEP 668 distros (Debian 12+, Ubuntu 23.04+, Fedora 38+). When pipx, pip3, and pip are all missing, prints the right install command for the detected package manager (apt, dnf, apk, pacman, brew). On install failure, pauses for Enter so the error doesn't scroll past behind the new ssh session.
+- **Config set rejects unknown keys.** Previously `jump config set tmuxp false` silently accepted the mistyped key (it should be `integration.tmuxp`); the rogue value persisted but was hidden from `jump config` because the printer only shows known keys.
+
+## New
+
+- **Setup script installs completions.** Running `setup.sh` from a repo checkout now also runs `make install-completions`, so tab completion is wired up alongside the config file in one go.
+- **Doxygen API docs published to GitHub Pages.** Auto-deploys on every push to main.
+- **Continuous integration.** Every pull request and push to main now builds and runs the unit-test harness on Linux and macOS.
+- **Branch protection.** Main now requires green CI before merge, linear history, and resolved conversations.
 
 ## Install
 
@@ -20,15 +20,6 @@ First tagged release of lilypad (formerly ssh-menu).
 curl -fsSL https://raw.githubusercontent.com/spuddydev/lilypad/main/install.sh | bash
 ```
 
-Or two-step:
+## Upgrading from 1.0.0
 
-```
-curl -fsSL https://raw.githubusercontent.com/spuddydev/lilypad/main/install.sh -o install.sh
-less install.sh
-bash install.sh
-```
-
-## Notes
-
-- Linux x86_64 and macOS Apple Silicon (`darwin-arm64`) prebuilds available; Intel Mac and Linux arm64 build from source for now.
-- Homebrew tap setup follows separately at `spuddydev/homebrew-lilypad`.
+The hosts file, state file, and config format are unchanged. Just rebuild and reinstall.
