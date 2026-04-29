@@ -1,6 +1,7 @@
 #include "hosts.h"
 
 #include <dirent.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -13,11 +14,58 @@ void get_hosts_path(char *out, size_t size) {
     const char *xdg = getenv("XDG_CONFIG_HOME");
     const char *home = getenv("HOME");
     if (xdg && *xdg)
-        snprintf(out, size, "%s/ssh-menu/hosts", xdg);
+        snprintf(out, size, "%s/lilypad/hosts", xdg);
     else if (home && *home)
-        snprintf(out, size, "%s/.config/ssh-menu/hosts", home);
+        snprintf(out, size, "%s/.config/lilypad/hosts", home);
     else
         snprintf(out, size, "hosts");
+}
+
+static int config_base(char *out, size_t size) {
+    const char *xdg = getenv("XDG_CONFIG_HOME");
+    const char *home = getenv("HOME");
+    if (xdg && *xdg) {
+        snprintf(out, size, "%s", xdg);
+        return 1;
+    }
+    if (home && *home) {
+        snprintf(out, size, "%s/.config", home);
+        return 1;
+    }
+    return 0;
+}
+
+void migrate_legacy_config(void) {
+    char base[MAX_PATH];
+    if (!config_base(base, sizeof(base))) return;
+
+    char old_dir[MAX_PATH], new_dir[MAX_PATH];
+    snprintf(old_dir, sizeof(old_dir), "%s/ssh-menu", base);
+    snprintf(new_dir, sizeof(new_dir), "%s/lilypad", base);
+
+    struct stat st_old, st_new;
+    int has_old = (stat(old_dir, &st_old) == 0 && S_ISDIR(st_old.st_mode));
+    int has_new = (stat(new_dir, &st_new) == 0 && S_ISDIR(st_new.st_mode));
+
+    if (!has_old) return;
+    if (has_new) {
+        fprintf(stderr,
+                "lilypad: legacy config at %s remains; %s already exists; not merging\n",
+                old_dir, new_dir);
+        return;
+    }
+    if (rename(old_dir, new_dir) != 0) {
+        if (errno == EXDEV) {
+            fprintf(stderr,
+                    "lilypad: cannot move %s to %s across filesystems.\n"
+                    "  please move it manually: mv %s %s\n",
+                    old_dir, new_dir, old_dir, new_dir);
+            exit(1);
+        }
+        fprintf(stderr, "lilypad: migration failed: %s\n", strerror(errno));
+        return;
+    }
+    fprintf(stderr, "lilypad: migrated config from %s to %s\n", old_dir, new_dir);
 }
 
 static void mkdir_p(const char *path) {
@@ -420,9 +468,9 @@ void get_templates_dir(char *out, size_t size) {
     const char *xdg = getenv("XDG_CONFIG_HOME");
     const char *home = getenv("HOME");
     if (xdg && *xdg)
-        snprintf(out, size, "%s/ssh-menu/tmuxp", xdg);
+        snprintf(out, size, "%s/lilypad/tmuxp", xdg);
     else if (home && *home)
-        snprintf(out, size, "%s/.config/ssh-menu/tmuxp", home);
+        snprintf(out, size, "%s/.config/lilypad/tmuxp", home);
     else
         snprintf(out, size, "tmuxp");
 }

@@ -321,6 +321,7 @@ static int cmd_menu(void) {
 }
 
 int main(int argc, char *argv[]) {
+    migrate_legacy_config();
     install_default_templates();
     if (argc > 1 && strcmp(argv[1], "--add") == 0)
         return cmd_add(argc, argv);
