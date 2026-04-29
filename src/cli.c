@@ -9,8 +9,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <errno.h>
+
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+#endif
 
 static int prompt_yn(const char *msg) {
     printf("%s [y/N] ", msg);
@@ -185,7 +191,7 @@ static int lev_distance(const char *a, const char *b) {
 }
 
 static void suggest_nick(const char *q, const Host *hosts, int n) {
-    static const char *const cmds[] = { "add", "config", NULL };
+    static const char *const cmds[] = { "add", "config", "update", "uninstall", NULL };
     int qlen = (int)strlen(q);
     int threshold = qlen <= 4 ? 1 : 2;
     int best_d = threshold + 1;
@@ -374,7 +380,7 @@ void apply_install_decisions(const Host *h, const char *letters) {
 
 static void emit_subcommands(void) {
     /* Underscore-prefixed subcommands are hidden from completion. */
-    static const char *const cmds[] = { "add", "config", NULL };
+    static const char *const cmds[] = { "add", "config", "update", "uninstall", NULL };
     for (int i = 0; cmds[i]; i++) printf("%s\n", cmds[i]);
 }
 
@@ -458,6 +464,169 @@ static int cmd_complete(int argc, char *argv[]) {
     return 0;
 }
 
+static int self_path(char *out, size_t outsize) {
+#ifdef __linux__
+    ssize_t n = readlink("/proc/self/exe", out, outsize - 1);
+    if (n > 0) { out[(size_t)n] = '\0'; return 0; }
+#elif defined(__APPLE__)
+    uint32_t sz = (uint32_t)outsize;
+    if (_NSGetExecutablePath(out, &sz) == 0) return 0;
+#endif
+    return -1;
+}
+
+#define LILYPAD_REPO "https://github.com/spuddydev/lilypad"
+
+static int latest_remote_tag(char *out, size_t outsize) {
+    FILE *p = popen(
+        "git ls-remote --tags --refs " LILYPAD_REPO " 2>/dev/null"
+        " | awk -F/ '{print $NF}'"
+        " | grep -E '^v[0-9]+\\.[0-9]+\\.[0-9]+$'"
+        " | sort -V | tail -1",
+        "r");
+    if (!p) return -1;
+    out[0] = '\0';
+    if (fgets(out, (int)outsize, p)) {
+        size_t n = strlen(out);
+        while (n > 0 && (out[n-1] == '\n' || out[n-1] == '\r')) out[--n] = '\0';
+    }
+    int rc = pclose(p);
+    if (rc != 0 || out[0] == '\0') return -1;
+    return 0;
+}
+
+static int cmp_semver(const char *a, const char *b) {
+    int aM = 0, am = 0, ap = 0, bM = 0, bm = 0, bp = 0;
+    if (*a == 'v') a++;
+    if (*b == 'v') b++;
+    sscanf(a, "%d.%d.%d", &aM, &am, &ap);
+    sscanf(b, "%d.%d.%d", &bM, &bm, &bp);
+    if (aM != bM) return aM - bM;
+    if (am != bm) return am - bm;
+    return ap - bp;
+}
+
+static int cmd_update(int argc, char *argv[]) {
+    int check_only = (argc >= 3 && strcmp(argv[2], "--check") == 0);
+
+    char latest[64];
+    if (latest_remote_tag(latest, sizeof(latest)) != 0) {
+        fprintf(stderr, "lilypad: could not fetch latest tag from %s\n", LILYPAD_REPO);
+        fprintf(stderr, "  check your network and that git is installed\n");
+        return 1;
+    }
+
+    int cmp = cmp_semver(LILYPAD_VERSION, latest);
+    if (cmp >= 0) {
+        printf("lilypad: already on %s (latest is %s)\n", LILYPAD_VERSION, latest);
+        return 0;
+    }
+    printf("lilypad: %s available (current %s)\n", latest, LILYPAD_VERSION);
+
+    if (check_only) return 0;
+
+    printf("running install.sh from %s ...\n", LILYPAD_REPO);
+    int rc = system(
+        "curl -fsSL https://raw.githubusercontent.com/spuddydev/lilypad/main/install.sh | bash");
+    return WIFEXITED(rc) ? WEXITSTATUS(rc) : 1;
+}
+
+static int try_remove(const char *path) {
+    if (access(path, F_OK) != 0) return 0;
+    if (unlink(path) == 0) {
+        printf("removed %s\n", path);
+        return 1;
+    }
+    fprintf(stderr, "skip %s (%s)\n", path, strerror(errno));
+    return 0;
+}
+
+static int rm_rf(const char *path) {
+    char cmd[MAX_PATH + 16];
+    snprintf(cmd, sizeof(cmd), "rm -rf -- '%s'", path);
+    int rc = system(cmd);
+    return WIFEXITED(rc) ? WEXITSTATUS(rc) : 1;
+}
+
+static int cmd_uninstall(int argc, char *argv[]) {
+    (void)argc; (void)argv;
+    char self[MAX_PATH] = "";
+    if (self_path(self, sizeof(self)) != 0 || self[0] == '\0') {
+        fprintf(stderr, "lilypad: could not determine the binary's own path\n");
+        return 1;
+    }
+
+    printf("lilypad will remove:\n");
+    printf("  binary:      %s\n", self);
+    printf("  completions: bash and zsh, in standard system and user paths\n");
+    printf("  config:      ~/.config/lilypad (with confirmation)\n");
+    if (!prompt_yn("Continue?")) {
+        printf("aborted\n");
+        return 0;
+    }
+
+    int removed = 0;
+    if (access(self, F_OK) == 0) {
+        if (unlink(self) == 0) {
+            printf("removed %s\n", self);
+            removed++;
+        } else {
+            fprintf(stderr, "could not remove %s (%s)\n", self, strerror(errno));
+            fprintf(stderr, "  try: sudo rm %s\n", self);
+        }
+    }
+
+    static const char *const completion_paths[] = {
+        "/usr/local/etc/bash_completion.d/jump",
+        "/etc/bash_completion.d/jump",
+        "/opt/homebrew/etc/bash_completion.d/jump",
+        "/usr/local/share/zsh/site-functions/_jump",
+        "/usr/share/zsh/site-functions/_jump",
+        "/opt/homebrew/share/zsh/site-functions/_jump",
+        NULL,
+    };
+    for (int i = 0; completion_paths[i]; i++)
+        removed += try_remove(completion_paths[i]);
+
+    const char *xdg_data = getenv("XDG_DATA_HOME");
+    const char *home = getenv("HOME");
+    char p[MAX_PATH];
+    if (xdg_data && *xdg_data) {
+        snprintf(p, sizeof(p), "%s/bash-completion/completions/jump", xdg_data);
+        removed += try_remove(p);
+        snprintf(p, sizeof(p), "%s/zsh/site-functions/_jump", xdg_data);
+        removed += try_remove(p);
+    } else if (home && *home) {
+        snprintf(p, sizeof(p), "%s/.local/share/bash-completion/completions/jump", home);
+        removed += try_remove(p);
+        snprintf(p, sizeof(p), "%s/.local/share/zsh/site-functions/_jump", home);
+        removed += try_remove(p);
+    }
+
+    char config_dir[MAX_PATH] = "";
+    const char *xdg_cfg = getenv("XDG_CONFIG_HOME");
+    if (xdg_cfg && *xdg_cfg)
+        snprintf(config_dir, sizeof(config_dir), "%s/lilypad", xdg_cfg);
+    else if (home && *home)
+        snprintf(config_dir, sizeof(config_dir), "%s/.config/lilypad", home);
+
+    if (config_dir[0] && access(config_dir, F_OK) == 0) {
+        char msg[MAX_PATH + 64];
+        snprintf(msg, sizeof(msg), "Remove %s and all saved hosts?", config_dir);
+        if (prompt_yn(msg)) {
+            if (rm_rf(config_dir) == 0) {
+                printf("removed %s\n", config_dir);
+                removed++;
+            }
+        } else {
+            printf("kept %s\n", config_dir);
+        }
+    }
+
+    printf("\nlilypad: removed %d item(s).\n", removed);
+    return 0;
+}
+
 static void print_usage(const char *prog) {
     printf(
         "Usage:\n"
@@ -469,12 +638,14 @@ static void print_usage(const char *prog) {
         "  %s config                       Print the current config\n"
         "  %s config get|set|unset <key>   Edit one config value\n"
         "  %s config undecline <nick> <l>  Re-enable an integration prompt\n"
+        "  %s update [--check]             Update lilypad to the latest tag\n"
+        "  %s uninstall                    Remove lilypad from this machine\n"
         "  %s --help, -h                   Show this help\n"
         "  %s --version                    Show version\n"
         "\n"
         "Hosts file: ~/.config/lilypad/hosts\n"
         "Docs:       https://github.com/spuddydev/lilypad\n",
-        prog, prog, prog, prog, prog, prog, prog, prog, prog, prog);
+        prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog);
 }
 
 int cli_dispatch(int argc, char *argv[]) {
@@ -493,6 +664,8 @@ int cli_dispatch(int argc, char *argv[]) {
 
     if (strcmp(a, "add") == 0)            return cmd_add(argc, argv);
     if (strcmp(a, "config") == 0)         return cmd_config(argc, argv);
+    if (strcmp(a, "update") == 0)         return cmd_update(argc, argv);
+    if (strcmp(a, "uninstall") == 0)      return cmd_uninstall(argc, argv);
     if (strcmp(a, "_complete") == 0)      return cmd_complete(argc, argv);
     if (strcmp(a, "--template-add") == 0) return cmd_template_add(argc, argv);
 
