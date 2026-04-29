@@ -132,7 +132,18 @@ static int cmd_config(int argc, char *argv[]) {
         config_unset(argv[3]);
         return config_save();
     }
-    fprintf(stderr, "Usage: %s config [get|set|unset] ...\n", argv[0]);
+    if (strcmp(op, "undecline") == 0) {
+        if (argc != 5 || strlen(argv[4]) != 1) {
+            fprintf(stderr, "Usage: %s config undecline <nick> <letter>\n", argv[0]);
+            return 1;
+        }
+        if (state_remove_decline(argv[3], argv[4][0]) != 0) {
+            fprintf(stderr, "no decline for %s/%s\n", argv[3], argv[4]);
+            return 1;
+        }
+        return state_save();
+    }
+    fprintf(stderr, "Usage: %s config [get|set|unset|undecline] ...\n", argv[0]);
     return 1;
 }
 
