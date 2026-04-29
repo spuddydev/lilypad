@@ -61,6 +61,17 @@ out=$("$JUMP" cnfig 2>&1); rc=$?
 [ "$rc" -ne 0 ] || { echo "FAIL: unknown command did not exit non-zero"; fails=$((fails + 1)); }
 assert_contains "$out" "Did you mean" "unknown command suggests one"
 
+# install-completions auto-edits .zshrc and .bashrc idempotently
+fixture=$(mktemp -d)
+touch "$fixture/.zshrc" "$fixture/.bashrc"
+HOME="$fixture" XDG_DATA_HOME="$fixture/data" make install-completions >/dev/null 2>&1
+HOME="$fixture" XDG_DATA_HOME="$fixture/data" make install-completions >/dev/null 2>&1
+zsh_blocks=$(grep -c '>>> lilypad completions >>>' "$fixture/.zshrc" 2>/dev/null || echo 0)
+bash_blocks=$(grep -c '>>> lilypad completions >>>' "$fixture/.bashrc" 2>/dev/null || echo 0)
+assert_eq "$zsh_blocks" "1" "zshrc lilypad block written exactly once"
+assert_eq "$bash_blocks" "1" "bashrc lilypad block written exactly once"
+rm -rf "$fixture"
+
 if [ "$fails" -gt 0 ]; then
     echo
     echo "$fails CLI test(s) failed"

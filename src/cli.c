@@ -603,6 +603,35 @@ static int cmd_uninstall(int argc, char *argv[]) {
         removed += try_remove(p);
     }
 
+    /* Remove the lilypad block from .zshrc and .bashrc if present. */
+    char rc_paths[2][MAX_PATH] = { "", "" };
+    const char *zdotdir = getenv("ZDOTDIR");
+    if (zdotdir && *zdotdir)
+        snprintf(rc_paths[0], sizeof(rc_paths[0]), "%s/.zshrc", zdotdir);
+    else if (home && *home)
+        snprintf(rc_paths[0], sizeof(rc_paths[0]), "%s/.zshrc", home);
+    if (home && *home)
+        snprintf(rc_paths[1], sizeof(rc_paths[1]), "%s/.bashrc", home);
+
+    for (int i = 0; i < 2; i++) {
+        const char *rc = rc_paths[i];
+        if (!rc[0] || access(rc, F_OK) != 0) continue;
+        char check[MAX_PATH * 2];
+        snprintf(check, sizeof(check),
+                 "grep -qF '# >>> lilypad completions >>>' '%s'", rc);
+        if (system(check) != 0) continue;
+        char sed_cmd[MAX_PATH * 4];
+        snprintf(sed_cmd, sizeof(sed_cmd),
+                 "sed -i.lilypad-bak "
+                 "'/# >>> lilypad completions >>>/,"
+                 "/# <<< lilypad completions <<</d' '%s' "
+                 "&& rm -f '%s.lilypad-bak'", rc, rc);
+        if (system(sed_cmd) == 0) {
+            printf("removed lilypad block from %s\n", rc);
+            removed++;
+        }
+    }
+
     char config_dir[MAX_PATH] = "";
     const char *xdg_cfg = getenv("XDG_CONFIG_HOME");
     if (xdg_cfg && *xdg_cfg)

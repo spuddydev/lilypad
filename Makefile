@@ -54,8 +54,34 @@ install-completions:
 	cp completions/_jump "$$zsh_dir/_jump"; \
 	echo "bash: $$bash_dir/jump"; \
 	echo "zsh:  $$zsh_dir/_jump"; \
+	marker="# >>> lilypad completions >>>"; \
+	end="# <<< lilypad completions <<<"; \
 	if [ "$$zsh_dir" = "$${XDG_DATA_HOME:-$$HOME/.local/share}/zsh/site-functions" ]; then \
-	  echo "  add to ~/.zshrc:  fpath+=(\"$$zsh_dir\") && autoload -U compinit && compinit"; \
+	  zshrc="$${ZDOTDIR:-$$HOME}/.zshrc"; \
+	  if [ -f "$$zshrc" ] && grep -qF "$$marker" "$$zshrc"; then \
+	    echo "  zshrc already has the lilypad block at $$zshrc"; \
+	  elif [ -f "$$zshrc" ]; then \
+	    { \
+	      printf '\n%s\n' "$$marker"; \
+	      printf 'fpath+=("%s")\n' "$$zsh_dir"; \
+	      printf 'autoload -U compinit && compinit\n'; \
+	      printf '%s\n' "$$end"; \
+	    } >> "$$zshrc"; \
+	    echo "  appended fpath block to $$zshrc"; \
+	  fi; \
+	fi; \
+	if [ "$$bash_dir" = "$${XDG_DATA_HOME:-$$HOME/.local/share}/bash-completion/completions" ]; then \
+	  bashrc="$$HOME/.bashrc"; \
+	  if [ -f "$$bashrc" ] && grep -qF "$$marker" "$$bashrc"; then \
+	    echo "  bashrc already has the lilypad block at $$bashrc"; \
+	  elif [ -f "$$bashrc" ]; then \
+	    { \
+	      printf '\n%s\n' "$$marker"; \
+	      printf '[ -r "%s/jump" ] && source "%s/jump"\n' "$$bash_dir" "$$bash_dir"; \
+	      printf '%s\n' "$$end"; \
+	    } >> "$$bashrc"; \
+	    echo "  appended source block to $$bashrc"; \
+	  fi; \
 	fi
 
 TEST_LIB_OBJS = build/state.o build/exec.o build/hosts.o \
