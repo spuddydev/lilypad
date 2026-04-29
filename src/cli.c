@@ -118,6 +118,17 @@ static int cmd_config(int argc, char *argv[]) {
             fprintf(stderr, "Usage: %s config set <key> <value>\n", argv[0]);
             return 1;
         }
+        int known = 0;
+        for (int i = 0; ; i++) {
+            const char *k = config_known_key(i);
+            if (!k) break;
+            if (strcmp(k, argv[3]) == 0) { known = 1; break; }
+        }
+        if (!known) {
+            fprintf(stderr, "config: unknown key '%s'. Run '%s config' to see valid keys.\n",
+                    argv[3], argv[0]);
+            return 1;
+        }
         if (config_set_str(argv[3], argv[4]) != 0) {
             fprintf(stderr, "config: too many keys\n");
             return 1;
@@ -333,6 +344,7 @@ void prompt_install_decisions(const Host *h, char *out, size_t out_size) {
 
 void apply_install_decisions(const Host *h, const char *letters) {
     if (!letters || !*letters) return;
+    int any_failed = 0;
     for (const char *p = letters; *p; p++) {
         const Integration *target = NULL;
         for (int i = 0; ; i++) {
@@ -344,6 +356,7 @@ void apply_install_decisions(const Host *h, const char *letters) {
         printf("lilypad: installing %s on %s...\n", target->name, h->nick);
         if (target->offer_install(h) != 0) {
             fprintf(stderr, "lilypad: %s install failed\n", target->name);
+            any_failed = 1;
             continue;
         }
     }
@@ -351,6 +364,12 @@ void apply_install_decisions(const Host *h, const char *letters) {
     char markers[8] = "";
     probe_host(h->host, h->jump, markers, sizeof(markers));
     state_set_markers(h->nick, markers);
+    if (any_failed) {
+        fprintf(stderr, "lilypad: press Enter to continue, or Ctrl-C to abort...");
+        fflush(stderr);
+        int c = getchar();
+        while (c != '\n' && c != EOF) c = getchar();
+    }
 }
 
 static void emit_subcommands(void) {
