@@ -360,6 +360,11 @@ HostPick run_host_menu(Host *hosts, int *count, const char *hosts_path) {
                     getch();
                     continue;
                 }
+                if (is_reserved_nick(nick)) {
+                    ui_status("nickname is reserved");
+                    getch();
+                    continue;
+                }
                 if (strchr(host_addr, '@') == NULL) {
                     ui_status("host must be in user@addr format");
                     getch();
