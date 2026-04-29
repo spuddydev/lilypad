@@ -16,8 +16,6 @@ jobs:
             target: linux-x86_64
           - os: macos-latest
             target: darwin-arm64
-          - os: macos-13
-            target: darwin-x86_64
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -68,8 +66,6 @@ jobs:
           gh release create "${GITHUB_REF_NAME}" $notes_arg \
             dist/jump-linux-x86_64 \
             dist/jump-darwin-arm64 \
-            dist/jump-darwin-x86_64 \
             dist/jump-linux-x86_64.tar.gz \
             dist/jump-darwin-arm64.tar.gz \
-            dist/jump-darwin-x86_64.tar.gz \
             dist/lilypad-completions.tar.gz
