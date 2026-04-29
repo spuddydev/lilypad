@@ -44,8 +44,8 @@ void ui_begin(void);
 void ui_end(void);
 void ui_status(const char *msg);
 
-/* Inline text input. Pre-fills `out` with `default_value` (may be NULL).
- * Returns 0 when the user accepts with Enter, -1 on Esc/cancel. */
+/** Inline text input. Pre-fills `out` with `default_value` (may be NULL).
+ *  Returns 0 when the user accepts with Enter, -1 on Esc/cancel. */
 int ui_prompt(const char *label, char *out, size_t size, const char *default_value);
 
 typedef enum {

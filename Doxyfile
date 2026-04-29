@@ -1,0 +1,36 @@
+# Minimal hand-curated Doxyfile for lilypad.
+# Run via `make docs`.
+
+PROJECT_NAME           = lilypad
+PROJECT_BRIEF          = "ssh launcher with tmux integration"
+OUTPUT_DIRECTORY       = docs
+
+INPUT                  = include src
+FILE_PATTERNS          = *.h *.c
+RECURSIVE              = YES
+EXCLUDE                = vendor build
+
+EXTRACT_ALL            = YES
+EXTRACT_STATIC         = YES
+JAVADOC_AUTOBRIEF      = YES
+QUIET                  = YES
+WARN_IF_UNDOCUMENTED   = NO
+
+GENERATE_HTML          = YES
+GENERATE_LATEX         = NO
+HTML_OUTPUT            = html
+
+GENERATE_TREEVIEW      = YES
+DISABLE_INDEX          = NO
+FULL_SIDEBAR           = NO
+HTML_COLORSTYLE        = LIGHT
+
+HTML_EXTRA_STYLESHEET  = vendor/doxygen-awesome-css/doxygen-awesome.css \
+                         vendor/doxygen-awesome-css/doxygen-awesome-sidebar-only.css
+
+HTML_EXTRA_FILES       = vendor/doxygen-awesome-css/doxygen-awesome-darkmode-toggle.js \
+                         vendor/doxygen-awesome-css/doxygen-awesome-fragment-copy-button.js
+
+HTML_HEADER            = docs/header.html
+
+HAVE_DOT               = NO

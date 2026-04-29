@@ -24,6 +24,12 @@ build:
 
 PREFIX ?= /usr/local
 
+docs:
+	@if [ ! -f vendor/doxygen-awesome-css/doxygen-awesome.css ]; then \
+	  git submodule update --init --recursive vendor/doxygen-awesome-css; \
+	fi
+	doxygen Doxyfile
+
 # Completion install: prefer system paths if writable, otherwise fall
 # back to per-user XDG locations and print where the files landed.
 install-completions:
@@ -55,4 +61,4 @@ clean:
 
 -include $(DEPS)
 
-.PHONY: clean install-completions
+.PHONY: clean install-completions docs
