@@ -1,4 +1,5 @@
 #include "cli.h"
+#include "config.h"
 #include "exec.h"
 #include "hosts.h"
 #include "ui.h"
@@ -94,8 +95,42 @@ static int cmd_template_add(int argc, char *argv[]) {
     return install_template_from_path(argv[2]) == 0 ? 0 : 1;
 }
 
-static int cmd_config_placeholder(void) {
-    fprintf(stderr, "jump config: not implemented yet\n");
+static int cmd_config(int argc, char *argv[]) {
+    if (argc == 2) {
+        config_print();
+        return 0;
+    }
+    const char *op = argv[2];
+    if (strcmp(op, "get") == 0) {
+        if (argc != 4) {
+            fprintf(stderr, "Usage: %s config get <key>\n", argv[0]);
+            return 1;
+        }
+        const char *v = config_get_str(argv[3], NULL);
+        if (!v) return 1;
+        printf("%s\n", v);
+        return 0;
+    }
+    if (strcmp(op, "set") == 0) {
+        if (argc != 5) {
+            fprintf(stderr, "Usage: %s config set <key> <value>\n", argv[0]);
+            return 1;
+        }
+        if (config_set_str(argv[3], argv[4]) != 0) {
+            fprintf(stderr, "config: too many keys\n");
+            return 1;
+        }
+        return config_save();
+    }
+    if (strcmp(op, "unset") == 0) {
+        if (argc != 4) {
+            fprintf(stderr, "Usage: %s config unset <key>\n", argv[0]);
+            return 1;
+        }
+        config_unset(argv[3]);
+        return config_save();
+    }
+    fprintf(stderr, "Usage: %s config [get|set|unset] ...\n", argv[0]);
     return 1;
 }
 
@@ -257,7 +292,7 @@ int cli_dispatch(int argc, char *argv[]) {
     const char *a = argv[1];
 
     if (strcmp(a, "add") == 0)            return cmd_add(argc, argv);
-    if (strcmp(a, "config") == 0)         return cmd_config_placeholder();
+    if (strcmp(a, "config") == 0)         return cmd_config(argc, argv);
     if (strcmp(a, "--template-add") == 0) return cmd_template_add(argc, argv);
 
     if (strcmp(a, "-s") == 0) {
