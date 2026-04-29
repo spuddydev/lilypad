@@ -1,6 +1,8 @@
 #include "cli.h"
+#include "config.h"
 #include "exec.h"
 #include "hosts.h"
+#include "integration.h"
 #include "ui.h"
 
 #include <stdio.h>
@@ -104,6 +106,8 @@ int cmd_menu(void) {
 
 int main(int argc, char *argv[]) {
     migrate_legacy_config();
+    config_load();
+    integrations_init();
     install_default_templates();
     return cli_dispatch(argc, argv);
 }
