@@ -30,5 +30,5 @@ bash install.sh
 
 ## Notes
 
-- macOS Intel (`darwin-x86_64`) and Apple Silicon (`darwin-arm64`) prebuilds available; Linux x86_64 prebuilt; Linux arm64 builds from source for now.
+- Linux x86_64 and macOS Apple Silicon (`darwin-arm64`) prebuilds available; Intel Mac and Linux arm64 build from source for now.
 - Homebrew tap setup follows separately at `spuddydev/homebrew-lilypad`.
