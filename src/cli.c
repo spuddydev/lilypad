@@ -353,6 +353,92 @@ void apply_install_decisions(const Host *h, const char *letters) {
     state_set_markers(h->nick, markers);
 }
 
+static void emit_subcommands(void) {
+    /* Underscore-prefixed subcommands are hidden from completion. */
+    static const char *const cmds[] = { "add", "config", NULL };
+    for (int i = 0; cmds[i]; i++) printf("%s\n", cmds[i]);
+}
+
+static void emit_nicks(void) {
+    char path[MAX_PATH];
+    get_hosts_path(path, sizeof(path));
+    Host hosts[MAX_HOSTS];
+    int n = load_hosts(path, hosts, MAX_HOSTS);
+    for (int i = 0; i < n; i++) printf("%s\n", hosts[i].nick);
+}
+
+static void emit_sessions(const char *nick) {
+    HostState *st = state_get(nick);
+    if (!st) return;
+    for (int i = 0; i < st->session_count; i++) printf("%s\n", st->sessions[i]);
+}
+
+static void emit_config_keys(void) {
+    for (int i = 0; ; i++) {
+        const char *k = config_known_key(i);
+        if (!k) break;
+        printf("%s\n", k);
+    }
+}
+
+static int is_known_nick(const char *nick) {
+    char path[MAX_PATH];
+    get_hosts_path(path, sizeof(path));
+    Host hosts[MAX_HOSTS];
+    int n = load_hosts(path, hosts, MAX_HOSTS);
+    for (int i = 0; i < n; i++)
+        if (strcmp(hosts[i].nick, nick) == 0) return 1;
+    return 0;
+}
+
+static int cmd_complete(int argc, char *argv[]) {
+    /* argv[0]=jump, argv[1]=_complete, argv[2..] are the slice of input
+       words after the binary name (including the partial under cursor). */
+    int n = argc - 2;
+    if (n <= 0) {
+        emit_subcommands();
+        emit_nicks();
+        return 0;
+    }
+    const char *first = argv[2];
+    if (n == 1) {
+        emit_subcommands();
+        emit_nicks();
+        return 0;
+    }
+    /* n >= 2 */
+    if (strcmp(first, "config") == 0) {
+        if (n == 2) {
+            printf("get\nset\nunset\nundecline\n");
+            return 0;
+        }
+        const char *op = argv[3];
+        if (strcmp(op, "get") == 0 || strcmp(op, "set") == 0 || strcmp(op, "unset") == 0) {
+            if (n == 3) emit_config_keys();
+            return 0;
+        }
+        if (strcmp(op, "undecline") == 0) {
+            if (n == 3) emit_nicks();
+            else if (n == 4) printf("t\np\n");
+            return 0;
+        }
+        return 0;
+    }
+    if (strcmp(first, "-s") == 0) {
+        if (n == 2) emit_nicks();
+        return 0;
+    }
+    if (strcmp(first, "add") == 0) {
+        return 0; /* addresses, nicks and jump hosts are user-typed. */
+    }
+    /* first is a nick? complete sessions for it. */
+    if (is_known_nick(first) && n == 2) {
+        emit_sessions(first);
+        return 0;
+    }
+    return 0;
+}
+
 int cli_dispatch(int argc, char *argv[]) {
     if (argc <= 1) return cmd_menu();
 
@@ -360,6 +446,7 @@ int cli_dispatch(int argc, char *argv[]) {
 
     if (strcmp(a, "add") == 0)            return cmd_add(argc, argv);
     if (strcmp(a, "config") == 0)         return cmd_config(argc, argv);
+    if (strcmp(a, "_complete") == 0)      return cmd_complete(argc, argv);
     if (strcmp(a, "--template-add") == 0) return cmd_template_add(argc, argv);
 
     if (strcmp(a, "-s") == 0) {
