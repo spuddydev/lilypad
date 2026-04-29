@@ -46,8 +46,10 @@ void ui_begin(void) {
     curs_set(0);
     keypad(stdscr, TRUE);
     start_color();
+    int rc = use_default_colors();
     init_pair(1, COLOR_BLACK, COLOR_CYAN);
-    init_pair(2, COLOR_RED, COLOR_BLACK);
+    if (rc == OK) init_pair(2, COLOR_RED, -1);
+    else          init_pair(2, COLOR_RED, COLOR_BLACK);
 }
 
 void ui_end(void) {
