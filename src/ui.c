@@ -229,7 +229,7 @@ HostPick run_host_menu(Host *hosts, int *count, const char *hosts_path) {
     HostPick result = {-1, INTENT_CANCEL};
 
     if (*count == 0) {
-        mvaddstr(0, 0, "No hosts found. Use: jump --add name@address nickname");
+        mvaddstr(0, 0, "No hosts found. Use: jump add user@address nickname");
         getch();
         return result;
     }
@@ -357,6 +357,11 @@ HostPick run_host_menu(Host *hosts, int *count, const char *hosts_path) {
 
                 if (nick[0] == '\0' || strpbrk(nick, " \t\r\n")) {
                     ui_status("nickname must be non-empty and whitespace-free");
+                    getch();
+                    continue;
+                }
+                if (is_reserved_nick(nick)) {
+                    ui_status("nickname is reserved");
                     getch();
                     continue;
                 }
