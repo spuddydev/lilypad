@@ -1,16 +1,18 @@
-# v1.1.3
+# v1.1.4
 
-Self-management subcommands and a polished docs site.
+Live state and a smoother first-run setup.
 
 ## New
 
-- **`jump update [--check]`** fetches the latest tag via `git ls-remote`, compares it to the compiled-in version, and runs the install script when newer. `--check` only prints the comparison.
-- **`jump uninstall`** removes the binary, both bash and zsh completion files in standard system and user paths, and (with a y/N confirm) the config directory. Detects its own binary path through `/proc/self/exe` on Linux and `_NSGetExecutablePath` on macOS.
-- **CLI smoke tests.** A `tests/cli.sh` harness runs alongside the unit tests on every PR. Catches the kind of regressions that have been hitting in the field: missing flags, config set accepting bogus keys, suggestion behaviour.
+- **Post-disconnect reprobe.** The connect path now forks ssh as a child instead of replacing the menu process. After ssh exits, a detached background probe refreshes markers and session names. Tab completion stays current without the user ever opening the menu again, and an open menu in another terminal sees the new state on its next tick.
+- **Install auto-edits your shell rc.** When falling back to user-only completion paths, the install step appends an idempotent marker block to `.zshrc` and `.bashrc` so tab completion just works after a shell restart. Uninstall removes the same block.
+- **CLI smoke tests cover the rc edits** and run on every PR.
 
-## Changes
+## Fixes
 
-- **Doxygen site polish.** Real curated landing page with a layout overview and pointers to where to start reading, lilypad green colour theme with dark-mode equivalents, eight `@defgroup` sections so the public API is grouped in the sidebar and Topics page, source browser with caller and callee cross-links, plus heading anchors, an interactive table of contents, and tabs.
+- **Doxygen mainpage now renders.** Bold-around-inline-code (`**\`hosts\`**`) was rendering literally; switched to bold-only and refreshed the runtime model paragraph that still described the old execlp handoff.
+- **Doxygen sidebar shows.** `DISABLE_INDEX = YES` is required by doxygen-awesome's sidebar-only layout.
+- **Doxygen search bar removed.** The default search box collided with the sidebar; the repo is small enough that browsing the tree beats it anyway.
 
 ## Install
 
@@ -22,12 +24,4 @@ curl -fsSL https://raw.githubusercontent.com/spuddydev/lilypad/main/install.sh |
 
 ```
 jump update
-```
-
-Or if you cloned the repo:
-
-```
-cd path/to/lilypad
-git pull
-bash setup.sh
 ```
