@@ -111,11 +111,17 @@ int cmd_menu(void) {
 }
 
 int main(int argc, char *argv[]) {
-    migrate_legacy_config();
+    /* Completion calls jump on every TAB. Skip side effects so the shell
+       feels snappy and TAB never mutates the filesystem. */
+    int is_complete = (argc > 1 && strcmp(argv[1], "_complete") == 0);
+
+    if (!is_complete) migrate_legacy_config();
     config_load();
     integrations_init();
     state_load();
-    migrate_hosts_to_state();
-    install_default_templates();
+    if (!is_complete) {
+        migrate_hosts_to_state();
+        install_default_templates();
+    }
     return cli_dispatch(argc, argv);
 }
