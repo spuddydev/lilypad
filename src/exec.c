@@ -1,6 +1,10 @@
 #include "exec.h"
 #include "hosts.h"
+#include "state.h"
 
+#include <errno.h>
+#include <fcntl.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -20,20 +24,110 @@ int host_has_tmuxp(const Host *h) {
     return h->markers[0] != '?' && strchr(h->markers, 'p') == NULL;
 }
 
+/* Run a probe of `h` and rewrite the state file. Detached so the user's
+   shell prompt comes back immediately after disconnect. */
+static void spawn_background_reprobe(const Host *h) {
+    fflush(stdout);
+    fflush(stderr);
+    pid_t bg = fork();
+    if (bg < 0) return;
+    if (bg == 0) {
+        /* First child: setsid and double-fork so the grandchild is reparented
+           to init/launchd and the parent doesn't have to wait on it. */
+        setsid();
+        pid_t bg2 = fork();
+        if (bg2 != 0) _exit(0);
+
+        /* Grandchild: detach stdio so nothing prints over the user's shell. */
+        int devnull = open("/dev/null", O_RDWR);
+        if (devnull >= 0) {
+            dup2(devnull, 0);
+            dup2(devnull, 1);
+            dup2(devnull, 2);
+            if (devnull > 2) close(devnull);
+        }
+
+        char markers[8] = "";
+        probe_host(h->host, h->jump, markers, sizeof(markers));
+        char sessions[16][128];
+        int ns = 0;
+        if (markers[0] != '?')
+            ns = fetch_sessions(h->host, h->jump, sessions, 16);
+        if (ns < 0) ns = 0;
+
+        state_begin_batch();
+        state_set_markers(h->nick, markers);
+        if (ns > 0) state_set_sessions(h->nick, sessions, ns);
+        state_commit_batch();
+        _exit(0);
+    }
+    /* Reap the first child immediately; the grandchild is detached. */
+    int status;
+    waitpid(bg, &status, 0);
+}
+
+/* Fork ssh as a child, wait for it, then kick off the post-disconnect
+   reprobe in the background. SIGINT and SIGQUIT are ignored in the
+   parent so they reach ssh; the child resets them via the inherited
+   default after fork. */
+static int run_ssh_with_reprobe(const Host *h, const char *const *argv) {
+    fflush(stdout);
+    fflush(stderr);
+
+    struct sigaction old_int, old_quit, ign = {0};
+    ign.sa_handler = SIG_IGN;
+    sigaction(SIGINT,  &ign, &old_int);
+    sigaction(SIGQUIT, &ign, &old_quit);
+
+    pid_t pid = fork();
+    if (pid < 0) {
+        perror("fork");
+        sigaction(SIGINT,  &old_int,  NULL);
+        sigaction(SIGQUIT, &old_quit, NULL);
+        return 1;
+    }
+    if (pid == 0) {
+        /* Child: restore default signal handling so ssh can be Ctrl-C'd. */
+        sigaction(SIGINT,  &old_int,  NULL);
+        sigaction(SIGQUIT, &old_quit, NULL);
+        execvp("ssh", (char *const *)argv);
+        perror("ssh");
+        _exit(127);
+    }
+
+    int status;
+    while (waitpid(pid, &status, 0) == -1 && errno == EINTR) {}
+
+    sigaction(SIGINT,  &old_int,  NULL);
+    sigaction(SIGQUIT, &old_quit, NULL);
+
+    spawn_background_reprobe(h);
+
+    return WIFEXITED(status) ? WEXITSTATUS(status) : 1;
+}
+
 int exec_ssh_plain(const Host *h) {
-    if (h->jump[0]) execlp("ssh", "ssh", "-J", h->jump, h->host, NULL);
-    else            execlp("ssh", "ssh", h->host, NULL);
-    perror("ssh");
-    return 1;
+    const char *argv[8];
+    int a = 0;
+    argv[a++] = "ssh";
+    if (h->jump[0]) { argv[a++] = "-J"; argv[a++] = h->jump; }
+    argv[a++] = h->host;
+    argv[a++] = NULL;
+    return run_ssh_with_reprobe(h, argv);
 }
 
 int exec_ssh_tmux(const Host *h, const char *remote_cmd) {
     char wrapped[1024];
     snprintf(wrapped, sizeof(wrapped), REMOTE_PATH_PREFIX "%s", remote_cmd);
-    if (h->jump[0]) execlp("ssh", "ssh", "-t", "-J", h->jump, h->host, wrapped, NULL);
-    else            execlp("ssh", "ssh", "-t", h->host, wrapped, NULL);
-    perror("ssh");
-    return 1;
+    const char *argv[8];
+    int a = 0;
+    argv[a++] = "ssh";
+    argv[a++] = "-t";
+    if (h->jump[0]) { argv[a++] = "-J"; argv[a++] = h->jump; }
+    argv[a++] = h->host;
+    argv[a++] = wrapped;
+    argv[a++] = NULL;
+    return run_ssh_with_reprobe(h, argv);
 }
 
 static int scp_template(const Host *h, const char *src, const char *remote_path) {
