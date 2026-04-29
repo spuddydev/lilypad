@@ -339,6 +339,57 @@ HostPick run_host_menu(Host *hosts, int *count, const char *hosts_path) {
             } else if (key == 'r') {
                 if (fcount > 0)
                     refresh_host(&hosts[filtered[selected]], hosts_path);
+            } else if (key == 'A') {
+                if (*count >= MAX_HOSTS) {
+                    ui_status("host list is full");
+                    getch();
+                    continue;
+                }
+                char nick[MAX_LINE] = "";
+                char host_addr[MAX_LINE] = "";
+                char jump[MAX_LINE] = "";
+                if (ui_prompt("Nickname:", nick, sizeof(nick), NULL) != 0)
+                    continue;
+                if (ui_prompt("Host (user@addr):", host_addr, sizeof(host_addr), NULL) != 0)
+                    continue;
+                if (ui_prompt("Jump host (blank for none):", jump, sizeof(jump), NULL) != 0)
+                    continue;
+
+                if (nick[0] == '\0' || strpbrk(nick, " \t\r\n")) {
+                    ui_status("nickname must be non-empty and whitespace-free");
+                    getch();
+                    continue;
+                }
+                if (strchr(host_addr, '@') == NULL) {
+                    ui_status("host must be in user@addr format");
+                    getch();
+                    continue;
+                }
+                int dup = 0;
+                for (int i = 0; i < *count; i++)
+                    if (strcmp(hosts[i].nick, nick) == 0) { dup = 1; break; }
+                if (dup) {
+                    ui_status("nickname already exists");
+                    getch();
+                    continue;
+                }
+
+                if (hosts_path &&
+                    add_host(hosts_path, nick, host_addr, jump[0] ? jump : NULL) != 0) {
+                    ui_status("could not write hosts file");
+                    getch();
+                    continue;
+                }
+
+                query[0] = '\0';
+                if (hosts_path)
+                    *count = load_hosts(hosts_path, hosts, MAX_HOSTS);
+                fcount = apply_filter(hosts, *count, query, filtered);
+                selected = 0;
+                for (int i = 0; i < fcount; i++)
+                    if (filtered[i] == *count - 1) { selected = i; break; }
+                top = 0;
+                refresh_host(&hosts[*count - 1], hosts_path);
             } else if (key == 'q') {
                 return result;
             } else if (key >= '1' && key <= '9') {
