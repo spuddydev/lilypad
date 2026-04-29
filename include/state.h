@@ -5,6 +5,12 @@
 #include <time.h>
 #include "common.h"
 
+/**
+ * @defgroup state Runtime State
+ * @brief Per-host runtime data persisted with a write batch API.
+ * @{
+ */
+
 /** Cap on cached tmux session names per host. */
 #define STATE_MAX_SESSIONS 16
 
@@ -64,5 +70,7 @@ void state_encode(char *dst, size_t dstsz, const char *src);
 
 /** Inverse of state_encode. */
 void state_decode(char *dst, size_t dstsz, const char *src);
+
+/** @} */
 
 #endif

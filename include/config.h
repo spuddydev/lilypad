@@ -3,6 +3,12 @@
 
 #include <stddef.h>
 
+/**
+ * @defgroup config Config File
+ * @brief Plain `key = value` config parser and store.
+ * @{
+ */
+
 /** Resolve the config file path. */
 void get_config_path(char *out, size_t size);
 
@@ -32,5 +38,7 @@ const char *config_known_key(int index);
 
 /** Print the current config to stdout (key = value, comments included). */
 void config_print(void);
+
+/** @} */
 
 #endif

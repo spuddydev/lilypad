@@ -4,6 +4,12 @@
 #include <stddef.h>
 #include "common.h"
 
+/**
+ * @defgroup ui Menu and Prompts
+ * @brief ncurses widgets, host menu, session sub-menu, and small prompts.
+ * @{
+ */
+
 /** What the user wants to do with a picked host. */
 typedef enum {
     INTENT_CANCEL = 0,        /**< Quit without picking. */
@@ -77,5 +83,7 @@ SubChoice run_tmux_menu(const char *host_label, const char *host, const char *ju
 
 /** Pick from the available tmuxp templates for a host. */
 TemplatePick run_template_menu(const char *host_label, char templates[][128], int n);
+
+/** @} */
 
 #endif

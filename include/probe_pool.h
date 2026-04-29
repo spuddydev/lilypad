@@ -3,6 +3,12 @@
 
 #include "common.h"
 
+/**
+ * @defgroup probe_pool Probe Pool
+ * @brief Forked-ssh probe pool with per-child pipes for live menu updates.
+ * @{
+ */
+
 /** Hard upper bound on concurrent probe children. */
 #define POOL_MAX_PARALLEL 16
 /** Cap on session names returned per probe. */
@@ -38,5 +44,7 @@ int probe_pool_active(void);
 
 /** Number of items queued behind the parallelism cap. */
 int probe_pool_queued(void);
+
+/** @} */
 
 #endif

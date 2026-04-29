@@ -1,21 +1,31 @@
-# Minimal hand-curated Doxyfile for lilypad.
+# Hand-curated Doxyfile for lilypad.
 # Run via `make docs`.
 
 PROJECT_NAME           = lilypad
+PROJECT_NUMBER         = "1.1.2"
 PROJECT_BRIEF          = "ssh launcher with tmux integration"
 OUTPUT_DIRECTORY       = docs
 
-INPUT                  = include src README.md
-FILE_PATTERNS          = *.h *.c
+INPUT                  = docs/mainpage.md include src
+FILE_PATTERNS          = *.h *.c *.md
 RECURSIVE              = YES
-EXCLUDE                = vendor build
-USE_MDFILE_AS_MAINPAGE = README.md
+EXCLUDE                = vendor build docs/html
+USE_MDFILE_AS_MAINPAGE = docs/mainpage.md
 
 EXTRACT_ALL            = YES
 EXTRACT_STATIC         = YES
+EXTRACT_PRIVATE        = NO
 JAVADOC_AUTOBRIEF      = YES
 QUIET                  = YES
 WARN_IF_UNDOCUMENTED   = NO
+
+# Cross-references and source browsing
+SOURCE_BROWSER         = YES
+INLINE_SOURCES         = NO
+REFERENCED_BY_RELATION = YES
+REFERENCES_RELATION    = YES
+REFERENCES_LINK_SOURCE = YES
+STRIP_CODE_COMMENTS    = NO
 
 GENERATE_HTML          = YES
 GENERATE_LATEX         = NO
@@ -24,13 +34,19 @@ HTML_OUTPUT            = html
 GENERATE_TREEVIEW      = YES
 DISABLE_INDEX          = NO
 FULL_SIDEBAR           = NO
-HTML_COLORSTYLE        = LIGHT
+HTML_COLORSTYLE        = TOGGLE
+HTML_DYNAMIC_SECTIONS  = YES
 
 HTML_EXTRA_STYLESHEET  = vendor/doxygen-awesome-css/doxygen-awesome.css \
-                         vendor/doxygen-awesome-css/doxygen-awesome-sidebar-only.css
+                         vendor/doxygen-awesome-css/doxygen-awesome-sidebar-only.css \
+                         vendor/doxygen-awesome-css/doxygen-awesome-sidebar-only-darkmode-toggle.css \
+                         docs/custom.css
 
 HTML_EXTRA_FILES       = vendor/doxygen-awesome-css/doxygen-awesome-darkmode-toggle.js \
-                         vendor/doxygen-awesome-css/doxygen-awesome-fragment-copy-button.js
+                         vendor/doxygen-awesome-css/doxygen-awesome-fragment-copy-button.js \
+                         vendor/doxygen-awesome-css/doxygen-awesome-paragraph-link.js \
+                         vendor/doxygen-awesome-css/doxygen-awesome-interactive-toc.js \
+                         vendor/doxygen-awesome-css/doxygen-awesome-tabs.js
 
 HTML_HEADER            = docs/header.html
 
