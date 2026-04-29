@@ -22,9 +22,37 @@ build/%.o: src/%.c | build
 build:
 	mkdir -p build
 
+PREFIX ?= /usr/local
+
+# Completion install: prefer system paths if writable, otherwise fall
+# back to per-user XDG locations and print where the files landed.
+install-completions:
+	@bash_dir=""; zsh_dir=""; \
+	for d in /usr/local/etc/bash_completion.d /etc/bash_completion.d; do \
+	  if [ -w "$$d" ]; then bash_dir="$$d"; break; fi; \
+	done; \
+	for d in /usr/local/share/zsh/site-functions /usr/share/zsh/site-functions; do \
+	  if [ -w "$$d" ]; then zsh_dir="$$d"; break; fi; \
+	done; \
+	if [ -z "$$bash_dir" ]; then \
+	  bash_dir="$${XDG_DATA_HOME:-$$HOME/.local/share}/bash-completion/completions"; \
+	  mkdir -p "$$bash_dir"; \
+	fi; \
+	if [ -z "$$zsh_dir" ]; then \
+	  zsh_dir="$${XDG_DATA_HOME:-$$HOME/.local/share}/zsh/site-functions"; \
+	  mkdir -p "$$zsh_dir"; \
+	fi; \
+	cp completions/jump.bash "$$bash_dir/jump"; \
+	cp completions/_jump "$$zsh_dir/_jump"; \
+	echo "bash: $$bash_dir/jump"; \
+	echo "zsh:  $$zsh_dir/_jump"; \
+	if [ "$$zsh_dir" = "$${XDG_DATA_HOME:-$$HOME/.local/share}/zsh/site-functions" ]; then \
+	  echo "  add to ~/.zshrc:  fpath+=(\"$$zsh_dir\") && autoload -U compinit && compinit"; \
+	fi
+
 clean:
 	rm -rf build $(BIN)
 
 -include $(DEPS)
 
-.PHONY: clean
+.PHONY: clean install-completions
