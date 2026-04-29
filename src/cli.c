@@ -458,10 +458,38 @@ static int cmd_complete(int argc, char *argv[]) {
     return 0;
 }
 
+static void print_usage(const char *prog) {
+    printf(
+        "Usage:\n"
+        "  %s                              Open the menu\n"
+        "  %s <nick>                       Open the host page\n"
+        "  %s <nick> <session> [--plain]   Attach or create a tmux session\n"
+        "  %s -s <nick>                    Plain ssh, no tmux\n"
+        "  %s add user@addr nick [jump]    Save a host\n"
+        "  %s config                       Print the current config\n"
+        "  %s config get|set|unset <key>   Edit one config value\n"
+        "  %s config undecline <nick> <l>  Re-enable an integration prompt\n"
+        "  %s --help, -h                   Show this help\n"
+        "  %s --version                    Show version\n"
+        "\n"
+        "Hosts file: ~/.config/lilypad/hosts\n"
+        "Docs:       https://github.com/spuddydev/lilypad\n",
+        prog, prog, prog, prog, prog, prog, prog, prog, prog, prog);
+}
+
 int cli_dispatch(int argc, char *argv[]) {
     if (argc <= 1) return cmd_menu();
 
     const char *a = argv[1];
+
+    if (strcmp(a, "--help") == 0 || strcmp(a, "-h") == 0) {
+        print_usage(argv[0]);
+        return 0;
+    }
+    if (strcmp(a, "--version") == 0) {
+        printf("lilypad %s\n", LILYPAD_VERSION);
+        return 0;
+    }
 
     if (strcmp(a, "add") == 0)            return cmd_add(argc, argv);
     if (strcmp(a, "config") == 0)         return cmd_config(argc, argv);
