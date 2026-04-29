@@ -105,6 +105,43 @@ static int find_nick(const Host *hosts, int n, const char *nick) {
     return -1;
 }
 
+static int lev_distance(const char *a, const char *b) {
+    size_t la = strlen(a), lb = strlen(b);
+    if (la > 32 || lb > 32) return 999;
+    int prev[33], curr[33];
+    for (size_t j = 0; j <= lb; j++) prev[j] = (int)j;
+    for (size_t i = 1; i <= la; i++) {
+        curr[0] = (int)i;
+        for (size_t j = 1; j <= lb; j++) {
+            int cost = (a[i-1] == b[j-1]) ? 0 : 1;
+            int del = prev[j] + 1;
+            int ins = curr[j-1] + 1;
+            int sub = prev[j-1] + cost;
+            int m = del < ins ? del : ins;
+            curr[j] = sub < m ? sub : m;
+        }
+        for (size_t j = 0; j <= lb; j++) prev[j] = curr[j];
+    }
+    return prev[lb];
+}
+
+static void suggest_nick(const char *q, const Host *hosts, int n) {
+    static const char *const cmds[] = { "add", "config", NULL };
+    int qlen = (int)strlen(q);
+    int threshold = qlen <= 4 ? 1 : 2;
+    int best_d = threshold + 1;
+    const char *best = NULL;
+    for (int i = 0; i < n; i++) {
+        int d = lev_distance(q, hosts[i].nick);
+        if (d < best_d) { best_d = d; best = hosts[i].nick; }
+    }
+    for (int i = 0; cmds[i]; i++) {
+        int d = lev_distance(q, cmds[i]);
+        if (d < best_d) { best_d = d; best = cmds[i]; }
+    }
+    if (best) fprintf(stderr, "Did you mean '%s'?\n", best);
+}
+
 static int cmd_ssh(const char *nick) {
     char path[MAX_PATH];
     get_hosts_path(path, sizeof(path));
@@ -113,6 +150,7 @@ static int cmd_ssh(const char *nick) {
     int idx = find_nick(hosts, n, nick);
     if (idx < 0) {
         fprintf(stderr, "Unknown host: %s\n", nick);
+        suggest_nick(nick, hosts, n);
         return 1;
     }
     return exec_ssh_plain(&hosts[idx]);
@@ -126,6 +164,7 @@ static int cmd_direct_session(const char *nick, const char *session, int force_p
     int idx = find_nick(hosts, n, nick);
     if (idx < 0) {
         fprintf(stderr, "Unknown host: %s\n", nick);
+        suggest_nick(nick, hosts, n);
         return 1;
     }
     char esc[256];
@@ -147,6 +186,7 @@ static int cmd_direct_host(const char *nick) {
     int idx = find_nick(hosts, n, nick);
     if (idx < 0) {
         fprintf(stderr, "Unknown host: %s\n", nick);
+        suggest_nick(nick, hosts, n);
         return 1;
     }
     const Host *h = &hosts[idx];
