@@ -1,6 +1,7 @@
 #include "cli.h"
 #include "exec.h"
 #include "hosts.h"
+#include "ui.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -135,12 +136,79 @@ static int cmd_direct_session(const char *nick, const char *session, int force_p
     return exec_ssh_tmux(&hosts[idx], remote_cmd);
 }
 
+/* Mirrors the post-pick interaction in cmd_menu (src/menu.c). Cancel from the
+   sub-menu exits rather than returning to a host list, since this path was
+   entered by nickname. */
 static int cmd_direct_host(const char *nick) {
-    /* Host page UI lands in a follow-up commit. For now, suggest the menu. */
-    fprintf(stderr,
-            "jump %s: open the menu (`jump`) and select '%s' to pick a session.\n",
-            nick, nick);
-    return 1;
+    char path[MAX_PATH];
+    get_hosts_path(path, sizeof(path));
+    Host hosts[MAX_HOSTS];
+    int n = load_hosts(path, hosts, MAX_HOSTS);
+    int idx = find_nick(hosts, n, nick);
+    if (idx < 0) {
+        fprintf(stderr, "Unknown host: %s\n", nick);
+        return 1;
+    }
+    const Host *h = &hosts[idx];
+
+    if (!host_has_tmux(h)) {
+        return exec_ssh_plain(h);
+    }
+
+    ui_begin();
+    ui_status("Loading sessions...");
+    char sessions[16][128];
+    int ns = fetch_sessions(h->host, h->jump, sessions, 16);
+    if (ns < 0) ns = 0;
+
+    SubChoice sc = {SUB_CANCEL, "", 0};
+    TemplatePick tp = {TPL_CANCEL, ""};
+    char new_session[64] = "main";
+
+    while (1) {
+        sc = run_tmux_menu(h->nick, h->host, h->jump, sessions, &ns, host_has_tmuxp(h));
+        if (sc.kind == SUB_CANCEL) { ui_end(); return 0; }
+        if (sc.kind != SUB_NEW) break;
+
+        char templates[32][128];
+        int nt = list_templates(templates, 32);
+        if (nt == 0) { tp.kind = TPL_DEFAULT; }
+        else {
+            tp = run_template_menu(h->nick, templates, nt);
+            if (tp.kind == TPL_CANCEL) continue;
+        }
+
+        if (tp.kind == TPL_DEFAULT) {
+            new_session[0] = '\0';
+            if (ui_prompt("New session name (blank for auto):",
+                          new_session, sizeof(new_session), NULL) != 0)
+                continue;
+            if (new_session[0] == '\0')
+                auto_session_name(sessions, ns, new_session, sizeof(new_session));
+        }
+        break;
+    }
+
+    ui_end();
+
+    const char *prefix = (is_iterm() && !sc.force_plain) ? "tmux -CC" : "tmux";
+    char remote_cmd[1024];
+    char esc[256];
+
+    if (sc.kind == SUB_PLAIN) return exec_ssh_plain(h);
+    if (sc.kind == SUB_NEW && tp.kind == TPL_NAMED)
+        return exec_template(h, tp.name, sc.force_plain);
+    if (sc.kind == SUB_NEW) {
+        shell_sq_escape(esc, sizeof(esc), new_session);
+        snprintf(remote_cmd, sizeof(remote_cmd), "%s new -A -s '%s'", prefix, esc);
+        return exec_ssh_tmux(h, remote_cmd);
+    }
+    if (sc.kind == SUB_ATTACH) {
+        shell_sq_escape(esc, sizeof(esc), sc.session);
+        snprintf(remote_cmd, sizeof(remote_cmd), "%s attach -t '%s'", prefix, esc);
+        return exec_ssh_tmux(h, remote_cmd);
+    }
+    return 0;
 }
 
 int cli_dispatch(int argc, char *argv[]) {
