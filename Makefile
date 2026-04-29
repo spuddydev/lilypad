@@ -1,5 +1,7 @@
 CC      = cc
-CFLAGS  = -Wall -Wextra -O2 -Iinclude -MMD -MP
+# -Wno-format-truncation: snprintf into fixed-size buffers is the project's
+# style and the truncation is intentional. Other warnings stay enabled.
+CFLAGS  = -Wall -Wextra -Wpedantic -Wno-format-truncation -O2 -Iinclude -MMD -MP
 
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Linux)
