@@ -156,7 +156,7 @@ int load_hosts(const char *path, Host *hosts, int max) {
 int is_reserved_nick(const char *nick) {
     if (!nick) return 1;
     if (nick[0] == '-') return 1;
-    static const char *const reserved[] = { "add", "config", "_complete", NULL };
+    static const char *const reserved[] = { "add", "config", "update", "uninstall", "_complete", NULL };
     for (int i = 0; reserved[i]; i++)
         if (strcmp(nick, reserved[i]) == 0) return 1;
     return 0;

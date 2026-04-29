@@ -68,8 +68,9 @@ $(TEST_BIN): build/test_main.o $(TEST_LIB_OBJS)
 build/test_main.o: tests/test_main.c | build
 	$(CC) $(CFLAGS) -c $< -o $@
 
-test: $(TEST_BIN)
+test: $(TEST_BIN) $(BIN)
 	./$(TEST_BIN)
+	bash tests/cli.sh
 
 clean:
 	rm -rf build $(BIN)
