@@ -194,7 +194,7 @@ static void draw_menu(const Host *hosts, const int *filtered, int fcount,
         const char *hint = "type to filter  [enter] select  [esc] cancel";
         mvaddstr(h - 2, (w - display_width(hint)) / 2, hint);
     } else {
-        const char *hint1 = "[j/k] move  [J/K] reorder  [D] delete";
+        const char *hint1 = "[j/k] move  [J/K] reorder  [A] add  [D] delete";
         const char *hint2 = "[enter] open  [s] ssh  [t] tmux  [/] search  [r] refresh  [q] quit";
         mvaddstr(h - 3, (w - display_width(hint1)) / 2, hint1);
         mvaddstr(h - 2, (w - display_width(hint2)) / 2, hint2);
