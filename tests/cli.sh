@@ -64,8 +64,8 @@ assert_contains "$out" "Did you mean" "unknown command suggests one"
 # install-completions auto-edits .zshrc and .bashrc idempotently
 fixture=$(mktemp -d)
 touch "$fixture/.zshrc" "$fixture/.bashrc"
-HOME="$fixture" XDG_DATA_HOME="$fixture/data" make install-completions >/dev/null 2>&1
-HOME="$fixture" XDG_DATA_HOME="$fixture/data" make install-completions >/dev/null 2>&1
+HOME="$fixture" XDG_DATA_HOME="$fixture/data" LILYPAD_USER_ONLY=1 make install-completions >/dev/null 2>&1
+HOME="$fixture" XDG_DATA_HOME="$fixture/data" LILYPAD_USER_ONLY=1 make install-completions >/dev/null 2>&1
 zsh_blocks=$(grep -c '>>> lilypad completions >>>' "$fixture/.zshrc" 2>/dev/null || echo 0)
 bash_blocks=$(grep -c '>>> lilypad completions >>>' "$fixture/.bashrc" 2>/dev/null || echo 0)
 assert_eq "$zsh_blocks" "1" "zshrc lilypad block written exactly once"

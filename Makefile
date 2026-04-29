@@ -36,12 +36,14 @@ docs:
 # back to per-user XDG locations and print where the files landed.
 install-completions:
 	@bash_dir=""; zsh_dir=""; \
-	for d in /usr/local/etc/bash_completion.d /etc/bash_completion.d; do \
-	  if [ -w "$$d" ]; then bash_dir="$$d"; break; fi; \
-	done; \
-	for d in /usr/local/share/zsh/site-functions /usr/share/zsh/site-functions; do \
-	  if [ -w "$$d" ]; then zsh_dir="$$d"; break; fi; \
-	done; \
+	if [ -z "$$LILYPAD_USER_ONLY" ]; then \
+	  for d in /usr/local/etc/bash_completion.d /etc/bash_completion.d; do \
+	    if [ -w "$$d" ]; then bash_dir="$$d"; break; fi; \
+	  done; \
+	  for d in /usr/local/share/zsh/site-functions /usr/share/zsh/site-functions; do \
+	    if [ -w "$$d" ]; then zsh_dir="$$d"; break; fi; \
+	  done; \
+	fi; \
 	if [ -z "$$bash_dir" ]; then \
 	  bash_dir="$${XDG_DATA_HOME:-$$HOME/.local/share}/bash-completion/completions"; \
 	  mkdir -p "$$bash_dir"; \
