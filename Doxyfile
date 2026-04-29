@@ -5,10 +5,11 @@ PROJECT_NAME           = lilypad
 PROJECT_BRIEF          = "ssh launcher with tmux integration"
 OUTPUT_DIRECTORY       = docs
 
-INPUT                  = include src
+INPUT                  = include src README.md
 FILE_PATTERNS          = *.h *.c
 RECURSIVE              = YES
 EXCLUDE                = vendor build
+USE_MDFILE_AS_MAINPAGE = README.md
 
 EXTRACT_ALL            = YES
 EXTRACT_STATIC         = YES
