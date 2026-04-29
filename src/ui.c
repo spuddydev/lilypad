@@ -66,6 +66,27 @@ void ui_status(const char *msg) {
     refresh();
 }
 
+UiConfirm ui_confirm3(const char *msg) {
+    curs_set(0);
+    while (1) {
+        erase();
+        int h, w;
+        getmaxyx(stdscr, h, w);
+        attron(A_BOLD);
+        mvaddstr(h / 2 - 1, (w - display_width(msg)) / 2, msg);
+        attroff(A_BOLD);
+        const char *hint = "[y] yes  [n] no  [v] never (don't ask again)";
+        attron(A_DIM);
+        mvaddstr(h - 2, (w - display_width(hint)) / 2, hint);
+        attroff(A_DIM);
+        refresh();
+        int k = getch();
+        if (k == 'y' || k == 'Y') return UI_CONFIRM_YES;
+        if (k == 'v' || k == 'V' || k == '!') return UI_CONFIRM_NEVER;
+        if (k == 'n' || k == 'N' || k == 27 || k == 'q') return UI_CONFIRM_NO;
+    }
+}
+
 static int ui_confirm(const char *msg) {
     curs_set(0);
     while (1) {
