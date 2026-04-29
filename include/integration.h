@@ -3,6 +3,12 @@
 
 #include "common.h"
 
+/**
+ * @defgroup integration Integration Registry
+ * @brief Static registry of optional integrations: iTerm, tmux, tmuxp.
+ * @{
+ */
+
 /** Whether an integration is checked locally or on the remote. */
 typedef enum {
     KIND_LOCAL,    /**< Detected on the user's terminal (e.g. iTerm). */
@@ -25,5 +31,7 @@ const Integration *integration_at(int index);
 
 /** Hydrate the `enabled` flag from config and detect_local. Call once at startup. */
 void integrations_init(void);
+
+/** @} */
 
 #endif

@@ -4,6 +4,12 @@
 #include <stddef.h>
 #include "common.h"
 
+/**
+ * @defgroup hosts Hosts and Probing
+ * @brief Hosts file storage, the remote probe, and the templates directory.
+ * @{
+ */
+
 /** Resolve the hosts file path under `$XDG_CONFIG_HOME/lilypad` or `~/.config/lilypad`. */
 void get_hosts_path(char *out, size_t size);
 
@@ -59,5 +65,7 @@ int  install_default_templates(void);
 
 /** Copy a template file from `src` into the templates dir. */
 int  install_template_from_path(const char *src);
+
+/** @} */
 
 #endif

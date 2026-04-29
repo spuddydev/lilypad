@@ -1,0 +1,47 @@
+/* Lilypad green theme overrides on top of doxygen-awesome.
+   Tweak hue/saturation in :root; doxygen-awesome consumes these. */
+
+html {
+    /* Light mode */
+    --primary-color: #2f7d4a;
+    --primary-dark-color: #1f5a32;
+    --primary-light-color: #b9dcc4;
+    --primary-lighter-color: #e7f3ec;
+    --primary-lightest-color: #f4faf6;
+
+    --page-secondary-background-color: #f4faf6;
+    --code-background: #f4faf6;
+    --fragment-background: #f4faf6;
+
+    --top-height: 110px;
+}
+
+html.dark-mode {
+    --primary-color: #6ad08a;
+    --primary-dark-color: #8fdca8;
+    --primary-light-color: #2a4d36;
+    --primary-lighter-color: #1a3322;
+    --primary-lightest-color: #122019;
+
+    --page-background-color: #1a1f1c;
+    --page-foreground-color: #d6e0d9;
+    --page-secondary-foreground-color: #9bb0a3;
+
+    --fragment-background: #1f2620;
+    --code-background: #1f2620;
+}
+
+#projectname {
+    font-weight: 600;
+}
+
+#projectnumber {
+    color: var(--primary-color);
+    font-weight: 500;
+}
+
+/* Make the brief stand out a touch */
+#projectbrief {
+    font-style: italic;
+    opacity: 0.8;
+}

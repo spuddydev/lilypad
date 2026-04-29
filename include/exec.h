@@ -4,6 +4,12 @@
 #include <stddef.h>
 #include "common.h"
 
+/**
+ * @defgroup exec Connect and Exec
+ * @brief ssh handoff, tmuxp template runner, iTerm `tmux -CC` choice.
+ * @{
+ */
+
 /** True when the local terminal is iTerm (TERM_PROGRAM == iTerm.app). */
 int is_iterm(void);
 
@@ -25,5 +31,7 @@ int exec_template(const Host *h, const char *template_name, int force_plain);
 
 /** Pick "untitled" or "untitled-<n>" not already in `sessions`. */
 void auto_session_name(char sessions[][128], int ns, char *out, size_t outsize);
+
+/** @} */
 
 #endif
