@@ -32,3 +32,5 @@ HTML_EXTRA_FILES       = vendor/doxygen-awesome-css/doxygen-awesome-darkmode-tog
                          vendor/doxygen-awesome-css/doxygen-awesome-fragment-copy-button.js
 
 HTML_HEADER            = docs/header.html
+
+HAVE_DOT               = NO
