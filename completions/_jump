@@ -1,0 +1,10 @@
+#compdef jump
+
+_jump() {
+    local -a items
+    local context="${words[@]:1:CURRENT-1}"
+    items=( ${(f)"$(jump _complete "${(@)words[2,CURRENT]}" 2>/dev/null)"} )
+    compadd -a items
+}
+
+_jump "$@"
