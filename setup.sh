@@ -4,6 +4,26 @@
 
 set -euo pipefail
 
+script_dir="$(cd "$(dirname "$0")" && pwd)"
+
+# If we're in a repo and lilypad is already installed, rebuild and update it.
+if [ -f "$script_dir/Makefile" ]; then
+    existing="$(command -v jump || true)"
+    if [ -n "$existing" ]; then
+        echo "found existing install at $existing — rebuilding..."
+        make -C "$script_dir"
+        if [ -w "$existing" ]; then
+            install -m 755 "$script_dir/jump" "$existing"
+            echo "updated $existing"
+        else
+            echo
+            echo "$existing is not writable. To finish updating, run:"
+            echo "  sudo install -m 755 $script_dir/jump $existing"
+        fi
+        echo
+    fi
+fi
+
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/lilypad"
 CONFIG_FILE="$CONFIG_DIR/config"
 
@@ -33,7 +53,6 @@ echo "  integration.iterm = $iterm"
 echo "  integration.tmuxp = $tmuxp"
 
 # Install shell completions if we're running from a repo checkout.
-script_dir="$(cd "$(dirname "$0")" && pwd)"
 if [ -f "$script_dir/Makefile" ] && [ -f "$script_dir/completions/jump.bash" ]; then
     echo
     echo "installing shell completions..."
