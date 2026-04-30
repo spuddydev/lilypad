@@ -2,7 +2,7 @@
 #define LILYPAD_COMMON_H
 
 /** Human-readable lilypad version. Bumped per release. */
-#define LILYPAD_VERSION "1.1.4"
+#define LILYPAD_VERSION "1.1.5"
 
 /** Filesystem path buffer size. */
 #define MAX_PATH  4096
