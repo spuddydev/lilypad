@@ -97,7 +97,7 @@ Red letters next to a host flag what is missing on the remote:
 | `tp` | Neither installed. |
 | `?` | Probe could not connect or authenticate. |
 
-Probing runs automatically on menu open (with a `probe.cache_seconds` cache) and on demand with `r` or `R`.
+On menu open, lilypad shows the last known markers from the state file. It only auto-probes hosts that have never been probed or whose last probe failed (`?`), so a transient outage never wipes a known-good entry. Refresh on demand with `r` (highlighted host) or `R` (all hosts); the post-disconnect reprobe also refreshes state after every connection.
 
 ## Config
 
@@ -108,7 +108,6 @@ Probing runs automatically on menu open (with a `probe.cache_seconds` cache) and
 | `integration.iterm` | `off` | Auto-set by `setup.sh` when `TERM_PROGRAM` is iTerm. |
 | `integration.tmuxp` | `off` | Auto-set by `setup.sh` when `tmuxp` is on `$PATH`. |
 | `probe.timeout` | `5` | Seconds, ssh `ConnectTimeout`. |
-| `probe.cache_seconds` | `60` | Skip reprobe within this window. |
 | `probe.max_parallel` | `8` | Concurrent probes during the menu's initial burst. |
 
 ## Integrations

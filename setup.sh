@@ -44,7 +44,6 @@ cat >"$CONFIG_FILE" <<EOF
 integration.iterm = $iterm
 integration.tmuxp = $tmuxp
 probe.timeout = 5
-probe.cache_seconds = 60
 probe.max_parallel = 8
 EOF
 

@@ -10,7 +10,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
-#include <time.h>
 
 static int display_width(const char *s) {
     int n = 0;
@@ -269,11 +268,14 @@ HostPick run_host_menu(Host *hosts, int *count, const char *hosts_path) {
     int top = 0;
 
     probe_pool_init(config_get_int("probe.max_parallel", 8));
-    int cache_seconds = config_get_int("probe.cache_seconds", 60);
-    time_t now = time(NULL);
+    /* Trust last known markers. Auto-probe only hosts with no state yet
+       or whose last probe was a failure ("?"), so menu open never clobbers
+       a known-good entry with a transient ssh failure. Refresh ('r'/'R')
+       and the post-disconnect reprobe still update state unconditionally. */
     for (int i = 0; i < *count; i++) {
         const HostState *st = state_get(hosts[i].nick);
-        if (!st || (now - st->last_probe) > cache_seconds)
+        int needs_probe = !st || st->markers[0] == '?';
+        if (needs_probe)
             probe_pool_enqueue(hosts[i].nick, hosts[i].host, hosts[i].jump);
     }
     probe_pool_pump();

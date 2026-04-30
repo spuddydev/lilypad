@@ -21,7 +21,6 @@ static const char *const known_keys[] = {
     "integration.iterm",
     "integration.tmuxp",
     "probe.timeout",
-    "probe.cache_seconds",
     "probe.max_parallel",
     NULL,
 };
